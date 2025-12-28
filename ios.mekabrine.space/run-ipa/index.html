@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Run IPA – Local Browser Viewer</title>
+
+<style>
+:root {
+  --bg:#0b0d10;--panel:#12171e;--ink:#e9edf3;--muted:#8b9aaa;--accent:#5de4c7;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;
+  display:flex;flex-direction:column;align-items:center;
+  min-height:100vh;padding:20px;
+}
+h1{font-size:18px;margin-bottom:10px;color:var(--accent)}
+#uploadBox{
+  background:var(--panel);border:2px dashed #2a323c;
+  padding:40px 20px;border-radius:16px;text-align:center;
+  max-width:500px;cursor:pointer;transition:border-color .3s;
+}
+#uploadBox:hover{border-color:var(--accent)}
+#fileInput{display:none}
+#progressBox{margin-top:10px;width:80%;max-width:400px;height:14px;
+  background:#1b222b;border-radius:10px;overflow:hidden;display:none}
+#progressBar{height:100%;width:0%;background:var(--accent);transition:width .2s}
+#status{margin-top:6px;font-size:13px;color:var(--muted);text-align:center}
+#deviceFrame{
+  margin-top:30px;width:320px;aspect-ratio:9/19;border:10px solid #111;
+  border-radius:40px;overflow:hidden;background:#000;
+  box-shadow:0 10px 40px rgba(0,0,0,.5);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+#appView{
+  width:100%;height:100%;background:#111;color:#fff;text-align:center;
+  padding:20px;overflow-y:auto;
+  animation:fadein .5s ease;
+}
+@keyframes fadein{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
+#icon{width:100px;height:100px;border-radius:20px;
+  box-shadow:0 0 10px rgba(0,0,0,.5);margin-bottom:15px}
+.meta{font-size:13px;color:var(--muted);margin:4px 0}
+#assets{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));
+  gap:8px;margin-top:10px;
+}
+.asset-thumb img{
+  width:100%;border-radius:8px;object-fit:cover;border:1px solid #222;
+}
+#storyboards{margin-top:15px;text-align:left;font-size:13px;color:var(--muted)}
+</style>
+</head>
+
+<body>
+<h1>Run IPA – Local Browser Viewer</h1>
+<div id="uploadBox" onclick="fileInput.click()">
+  <p><strong>Click to select a .ipa file</strong><br>(Everything runs locally)</p>
+  <input type="file" id="fileInput" accept=".ipa">
+</div>
+<div id="progressBox"><div id="progressBar"></div></div>
+<div id="status"></div>
+
+<div id="deviceFrame" hidden>
+  <div id="appView">
+    <img id="icon" src="" alt="App Icon">
+    <h2 id="appName">App Name</h2>
+    <div class="meta" id="bundleId"></div>
+    <div class="meta" id="version"></div>
+    <hr style="opacity:.2;margin:10px 0">
+    <div id="storyboards"></div>
+    <div id="assets"></div>
+  </div>
+</div>
+
+<!-- Main JS (ESM) -->
+<script type="module">
+import JSZip from "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm";
+import plist from "https://cdn.jsdelivr.net/npm/plist@3.1.0/+esm";
+
+let bplistParser;
+try {
+  const mod = await import("https://cdn.jsdelivr.net/npm/bplist-parser@0.3.1/+esm");
+  bplistParser = mod.default || mod;
+  console.log("Loaded bplist-parser successfully");
+} catch (e) {
+  console.warn("Failed to load bplist-parser, binary plists may not parse", e);
+}
+
+const fileInput = document.getElementById('fileInput');
+const progressBox = document.getElementById('progressBox');
+const progressBar = document.getElementById('progressBar');
+const statusEl = document.getElementById('status');
+const deviceFrame = document.getElementById('deviceFrame');
+const appName = document.getElementById('appName');
+const bundleId = document.getElementById('bundleId');
+const version = document.getElementById('version');
+const iconImg = document.getElementById('icon');
+const assetsEl = document.getElementById('assets');
+const storyboardsEl = document.getElementById('storyboards');
+
+function updateStatus(text, pct=null){
+  statusEl.textContent = text;
+  if(pct!==null){
+    progressBox.style.display='block';
+    progressBar.style.width=pct+'%';
+  }
+}
+function resetProgress(){
+  progressBox.style.display='none';
+  progressBar.style.width='0%';
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function parsePlistAuto(buf){
+  const magic = new Uint8Array(buf.slice(0,6));
+  const isBinary = String.fromCharCode(...magic) === "bplist";
+  if(isBinary && bplistParser){
+    try { return bplistParser.parseBuffer(buf)[0]; }
+    catch(e){ console.error("Binary plist parse failed", e); }
+  }
+  try {
+    return plist.parse(new TextDecoder().decode(buf));
+  } catch (e) {
+    console.error("XML plist parse failed", e);
+    throw e;
+  }
+}
+
+async function handleFile(file){
+  try{
+    updateStatus(`Reading ${file.name}…`,5);
+    const buf = await file.arrayBuffer();
+    await sleep(100);
+    updateStatus("Unpacking IPA archive…",25);
+    const zip = await JSZip.loadAsync(buf);
+    updateStatus("Locating app bundle…",40);
+
+    const appDir = Object.keys(zip.files).find(p=>p.startsWith("Payload/") && p.endsWith(".app/"));
+    if(!appDir) return updateStatus("No .app found in IPA");
+    const plistPath = Object.keys(zip.files).find(p=>p.startsWith(appDir)&&p.endsWith("Info.plist"));
+    if(!plistPath) return updateStatus("Info.plist not found");
+
+    updateStatus("Parsing Info.plist…",55);
+    const plistBuf = await zip.files[plistPath].async("arraybuffer");
+    const info = parsePlistAuto(plistBuf);
+
+    appName.textContent = info.CFBundleDisplayName || info.CFBundleName || "Unknown App";
+    bundleId.textContent = "Bundle ID: " + (info.CFBundleIdentifier || "unknown");
+    version.textContent = "Version: " + (info.CFBundleShortVersionString || "n/a");
+
+    updateStatus("Extracting icon…",70);
+    const iconCandidates = Object.keys(zip.files).filter(p=>p.includes("AppIcon")&&p.endsWith(".png")&&p.startsWith(appDir));
+    if(iconCandidates.length){
+      const best = iconCandidates.sort((a,b)=>b.length-a.length)[0];
+      const blob = await zip.files[best].async("blob");
+      iconImg.src = URL.createObjectURL(blob);
+    }else iconImg.src="";
+
+    updateStatus("Scanning assets…",85);
+    const imgs = Object.keys(zip.files)
+      .filter(p=>p.startsWith(appDir)&&/\.(png|jpg|jpeg)$/i.test(p)&&!p.includes("AppIcon"))
+      .slice(0,12);
+    assetsEl.innerHTML="";
+    for(const path of imgs){
+      const blob = await zip.files[path].async("blob");
+      const url = URL.createObjectURL(blob);
+      const div=document.createElement("div");
+      div.className="asset-thumb";
+      div.innerHTML=`<img src="${url}" alt="${path.split('/').pop()}">`;
+      assetsEl.appendChild(div);
+    }
+
+    updateStatus("Checking storyboards/XIBs…",95);
+    const sb = Object.keys(zip.files).filter(p=>p.startsWith(appDir)&&(p.endsWith(".storyboardc/")||p.endsWith(".xib")));
+    storyboardsEl.innerHTML = sb.length
+      ? "<strong>Detected Views:</strong><ul>"+sb.map(s=>`<li>${s.replace(appDir,"")}</li>`).join("")+"</ul>"
+      : "<em>No storyboard files found.</em>";
+
+    updateStatus("Done ✅",100);
+    await sleep(400);
+    resetProgress();
+    deviceFrame.hidden=false;
+  }catch(err){
+    console.error(err);
+    updateStatus("Error: "+err.message);
+  }
+}
+
+fileInput.addEventListener("change", e=>{
+  const f=e.target.files[0];
+  if(f) handleFile(f);
+});
+</script>
+</body>
+</html>

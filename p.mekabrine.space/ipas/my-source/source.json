@@ -1,0 +1,23 @@
+{
+  "name": "Mekabrine",
+  "identifier": "space.mekabrine.p",
+  "apps": [
+    {
+      "name": "Minecraft Story Mode Season 1",
+      "bundleIdentifier": "com.telltalegames.MC100",
+      "developerName": "TellTale Games",
+      "subtitle": "Minecraft story mode season 1 (instructions in desc).",
+      "version": "1.7",
+      "versionDate": "2025-08-17",
+      "versionDescription": "Minecraft Storymode Season 1.",
+      "downloadURL": "https://archive.org/download/telltale-games-ios-archive/Telltale%20Games/Minecraft%20Story%20Mode%20-%20Season%201/MCSM-1.7.0.ipa",
+      "localizedDescription": "I did not rapckage this ipa, it is found on https://archive.org/details/telltale-games-ios-archive and to get all of the episodes, follow these instructions\n\n\n\n1 - if you are jailbroke, install the ipa as normal. if not, use sidestore and livecontainer and install with livecontainer\n\n2 - open the app and after it shows the main menu, kill the app\n\n3 - open fila (or the livecontainer in files app) and open the data for the minecraft storymode app\n\n3a -- filza: /var/mobile/Containers/Data/Application/ and find the minecraft folder\n\n3b -- Livecontianer: /LiveContainer/Data/Application and find the correct folder for minecraft storymode\n\n\n\n4 - open the Documents folder and delete everything inside (you can zip its contents and save it somewhere safe if you want a backup)\n\n5 - download and unzip this file https://archive.org/download/telltale-games-ios-archive/Telltale%20Games/Minecraft%20Story%20Mode%20-%20Season%201/Episode%20Data/EPISODES%20(Season%20One).zip\n\n\n\n6 - open that extracted folder and open Documents (you can delete the __MACOSX or whatever folder), copy its contents and paste them in the minecraft app Documents folder\n\n7 - respring (if you can) and open the minecraft storymode app and all the episodes should say Purchased and Installed, if not, repeat steps 4-7",
+      "iconURL": "https://p.mekabrine.space/ipas/my-source/icons/mcsm.jpg",
+      "tintColor": "746344",
+      "size": 108175347,
+      "screenshotURLs": [
+        "https://p.mekabrine.space/ipas/my-source/icons/mcsm.jpg"
+      ]
+    }
+  ]
+}

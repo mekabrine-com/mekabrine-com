@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IPA Installer URL Generator</title>
+<style>
+  body {
+    background: #0d0d1a;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin-top: 60px;
+  }
+  input, select {
+    padding: 8px;
+    margin: 6px;
+  }
+  .popup {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .popupContent {
+    background: #1a1a33;
+    padding: 20px;
+    border-radius: 8px;
+    position: relative;
+    color: white;
+    max-width: 560px;
+    text-align: left;
+  }
+  .closePopup {
+    position: absolute;
+    right: 12px;
+    top: 8px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div id="main"></div>
+
+<div id="popup" class="popup" style="display:none;">
+  <div class="popupContent">
+    <button class="closePopup" aria-label="Close">&times;</button>
+    <h2 style="text-align:center;margin:6px 0 12px;">LiveContainer Install</h2>
+    <ol style="line-height:1.6;padding-left:18px;margin:0;">
+      <li>When LiveContainer opens, tap the <b>+</b> at the top left.</li>
+      <li>Choose <b>Install from URL</b>.</li>
+      <li>Paste from your clipboard to install.</li>
+    </ol>
+    <p style="opacity:.75;margin-top:10px;">The download URL has been copied to your clipboard.</p>
+  </div>
+</div>
+
+<script>
+const installSchemes = {
+  sidestore: "sidestore://install?url=",
+  altstore: "altstore://install?url=",
+  trollstore: "apple-magnifier://install?url=",
+  livecontainer: "livecontainer://"
+};
+
+function getParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+function createUrlPage() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <h2>Generate IPA Install URL</h2>
+    <input id="ipaUrl" type="text" placeholder="Enter IPA URL" style="width:300px;">
+    <div><label><input id="chooseMethod" type="checkbox" checked> Let user choose install method</label></div>
+    <div id="methodSelect" style="display:none;">
+      <label>Install Method:
+        <select id="method">
+          <option value="sidestore">SideStore</option>
+          <option value="altstore">AltStore</option>
+          <option value="trollstore">TrollStore</option>
+          <option value="livecontainer">LiveContainer</option>
+        </select>
+      </label>
+    </div>
+    <button onclick="generateUrl()">Generate</button>
+    <div id="result" style="margin-top:20px;"></div>
+  `;
+  const choose = document.getElementById('chooseMethod');
+  choose.addEventListener('change', () => {
+    document.getElementById('methodSelect').style.display = choose.checked ? 'none' : 'block';
+  });
+}
+
+function generateUrl() {
+  const ipaUrl = encodeURIComponent(document.getElementById('ipaUrl').value.trim());
+  const choose = document.getElementById('chooseMethod').checked;
+  let finalUrl = `https://ios.mekabrine.space/install-ipa?url=${ipaUrl}`;
+  if (!choose) {
+    const method = document.getElementById('method').value;
+    finalUrl += `&method=${method}`;
+  }
+  document.getElementById('result').innerHTML = `<textarea style="width:80%;height:60px;">${finalUrl}</textarea>`;
+}
+
+function showMethodChooser(ipaUrl) {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <h2>Select Installation Method</h2>
+    <select id="method">
+      <option value="sidestore">SideStore</option>
+      <option value="altstore">AltStore</option>
+      <option value="trollstore">TrollStore</option>
+      <option value="livecontainer">LiveContainer</option>
+    </select>
+    <button onclick="proceedInstall('${ipaUrl}')">Install</button>
+  `;
+}
+
+function proceedInstall(ipaUrl) {
+  const method = document.getElementById('method').value;
+  doInstall(ipaUrl, method);
+}
+
+function doInstall(ipaUrl, method) {
+  if (method === 'livecontainer') {
+    navigator.clipboard.writeText(ipaUrl).then(() => {
+      document.getElementById('popup').style.display = 'flex';
+      setTimeout(() => {
+        window.location.href = installSchemes[method] + ipaUrl;
+      }, 1200);
+    });
+  } else {
+    window.location.href = installSchemes[method] + ipaUrl;
+  }
+}
+
+document.querySelector('.closePopup').addEventListener('click', () => {
+  document.getElementById('popup').style.display = 'none';
+});
+
+window.onload = () => {
+  const ipaUrl = getParam('url');
+  const method = getParam('method');
+  if (!ipaUrl) createUrlPage();
+  else if (method) doInstall(ipaUrl, method);
+  else showMethodChooser(ipaUrl);
+};
+</script>
+
+</body>
+</html>

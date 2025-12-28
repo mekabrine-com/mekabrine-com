@@ -1,0 +1,1 @@
+{"Tanner":{"username":"Tanner","seed":"reagan","sector":"0","x":1887.294789333331891612033359706401824951171875,"y":509,"facing":1,"aimAngle":0.091701751256381636157044567880802787840366363525390625,"holding":"pistol","hp":150.02500000000310365066980011761188507080078125,"dead":false,"hasKeycard":false,"crouch":false,"ammo":12,"reloading":0,"lastSeen":1766611859}}

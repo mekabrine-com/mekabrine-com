@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Jailbreaking Repo</title>
+  <meta name="description" content="A clean starter page for a jailbreak repo featuring showcased shit, themes, and tweaks." />
+  <meta property="og:title" content="My Jailbreaking Repo" />
+  <meta property="og:description" content="Crafty theme and AndroidBar15 tweak — plus more." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#7c3aed" />
+  <style>
+    :root{
+      --bg:#0b0d10; --surface:#111418; --card:#151922; --muted:#9aa4af; --fg:#eaeef2; --accent:#7c3aed; --accent-2:#22d3ee; --ring:rgba(124,58,237,.25);
+      --radius:18px; --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(1200px 800px at 100% -10%,rgba(34,211,238,.12),transparent 60%),
+                 radial-gradient(900px 600px at -10% 20%,rgba(124,58,237,.18),transparent 55%),var(--bg);
+         color:var(--fg); font:500 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"}
+    a{color:inherit}
+    .container{max-width:1100px;margin:0 auto;padding:32px 20px}
+    header{
+      position:sticky;top:0;z-index:10;background:rgba(11,13,16,.65);backdrop-filter:saturate(150%) blur(10px);
+      border-bottom:1px solid rgba(255,255,255,.06)
+    }
+    .nav{display:flex;align-items:center;gap:18px;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.4px}
+    .brand .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+      box-shadow:0 6px 18px var(--ring)}
+    .links{display:flex;gap:14px;flex-wrap:wrap}
+    .links a{padding:10px 12px;border-radius:10px;color:#cfd6dd;text-decoration:none}
+    .links a:hover{background:rgba(255,255,255,.06);color:#fff}
+    .hero{display:grid;gap:18px;grid-template-columns:1.2fr .8fr;align-items:stretch;padding:36px 0}
+    .panel{border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+      box-shadow:var(--shadow)}
+    .panel .pad{padding:26px}
+    h1{font-size:clamp(28px,3vw,40px);line-height:1.15;margin:0 0 10px}
+    .muted{color:var(--muted)}
+    .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+    .btn{display:inline-flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.1);padding:12px 14px;border-radius:12px;
+         text-decoration:none;background:#12151a;color:#fff;cursor:pointer}
+    .btn.primary{background:linear-gradient(145deg,var(--accent),#5b20e6)}
+    .btn:hover{transform:translateY(-1px)}
+    .grid{display:grid;gap:18px}
+    .grid.cards{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+    .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(124,58,237,.16);
+          color:#d9ccff;border:1px solid rgba(124,58,237,.35)}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:12px}
+    .card{border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column}
+    .card .thumb{aspect-ratio:16/9;background:#0f1217 url('assets/placeholder.png') center/cover no-repeat;border-bottom:1px solid rgba(255,255,255,.06)}
+    .card .content{padding:18px}
+    .card h3{margin:0 0 6px}
+    .card p{margin:0 0 12px;color:#c7d0d9}
+    .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+    section{padding:28px 0}
+    .section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .section-title h2{margin:0;font-size:22px}
+    .kicker{letter-spacing:.25em;font-size:12px;color:var(--muted);text-transform:uppercase}
+    .code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:rgba(0,0,0,.35); padding:2px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.08)}
+    footer{padding:26px 0;color:#96a0aa;border-top:1px solid rgba(255,255,255,.08)}
+    .install-steps{display:grid;gap:10px}
+    .install-steps li{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);padding:10px 12px;border-radius:12px}
+    @media (max-width:900px){.hero{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <span>My Jailbreaking Repo</span>
+      </div>
+      <nav class="links" aria-label="Primary">
+        <a href="#showcased">Showcased Shit</a>
+        <a href="#themes">Themes</a>
+        <a href="#tweaks">Tweaks</a>
+        <a href="#install">Install</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="panel"><div class="pad">
+        <div class="kicker">Welcome</div>
+        <div class="cta-row">
+          <a class="btn primary" id="copyBtn" href="#" aria-label="Copy repo URL"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-1" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="7" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>Copy Repo URL</a>
+          <a class="btn" id="openInSileo" href="#">Open in Sileo</a>
+          <a class="btn" id="openInZebra" href="#">Open in Zebra</a>
+        </div>
+      </div></div>
+
+      <div class="panel"><div class="pad">
+        <div class="kicker">Repo At A Glance</div>
+        <div class="grid">
+          <div class="chip" title="Packages published"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5v8l-9 5-9-5" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>Packages: <strong>2</strong></div>
+          <div class="chip" title="Supports iOS versions">iOS: <strong>15</strong></div>
+          <div class="chip" title="Archs">Architecture: <strong>Arm64 (Rootless)</strong></div>
+          <div class="chip" title="Repo status">Status: <strong>Active</strong></div>
+        </div>
+        <p class="muted" style="margin-top:10px">*Adjust version badges below once you confirm compatibility.</p>
+      </div></div>
+    </section>
+
+    <section id="showcased">
+      <div class="section-title">
+        <h2>Showcased Shit</h2>
+        <span class="muted">Hand‑picked highlights</span>
+      </div>
+      <div class="grid cards">
+        <!-- Crafty Theme Card -->
+        
+        <article class="card">
+          <div class="thumb" style="background-image:url('/Packages/Jailboard/Icon.png')" role="img" aria-label="Crafty theme screenshot"></div>
+          <div class="content">
+            <div class="pill-row"><span class="badge">Theming</span><span class="badge">Stock</span></div>
+            <h3>JailBoard</h3>
+            <p>Finally an easy way to theme your apps in bulk without any jailbreak and completely on device!</p>
+            <div class="pill-row">
+              <span class="badge">iOS 18+</span>
+              <span class="badge">Shortcuts</span>
+              <span class="badge">Non-Jailbreak</span>
+            </div>
+            <div class="cta-row" style="margin-top:12px">
+              <a class="btn" href="#" id="dl-crafty">Install</a>
+              <a class="btn" href="#" id="more-crafty">Details</a>
+            </div>
+          </div>
+        </article>
+        
+        <article class="card">
+          <div class="thumb" style="background-image:url('assets/crafty-hero.png')" role="img" aria-label="Crafty theme screenshot"></div>
+          <div class="content">
+            <div class="pill-row"><span class="badge">Theme</span><span class="badge">New</span></div>
+            <h3>Crafty</h3>
+            <p>A sleek, cohesive icon theme with subtle depth and crisp glyphs. Tuned for OLED and low‑contrast UIs.</p>
+            <div class="pill-row">
+              <span class="badge">iOS 15+</span>
+              <span class="badge">SpringBoard</span>
+              <span class="badge">Dark/Light</span>
+            </div>
+            <div class="cta-row" style="margin-top:12px">
+              <a class="btn" href="#" id="dl-crafty">Install</a>
+              <a class="btn" href="#" id="more-crafty">Details</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- AndroidBar15 Tweak Card -->
+        <article class="card">
+          <div class="thumb" style="background-image:url('/Packages/AndroidBar15/Icon.png')" role="img" aria-label="AndroidBar15 tweak screenshot"></div>
+          <div class="content">
+            <div class="pill-row"><span class="badge">Tweak</span><span class="badge">Hot</span></div>
+            <h3>AndroidBar15</h3>
+            <p>Brings an Android‑style gesture bar to iOS 15 with smooth animations and per‑app controls.</p>
+            <div class="pill-row">
+              <span class="badge">iOS 15–16</span>
+              <span class="badge">Gesture Bar</span>
+              <span class="badge">Open Source</span>
+            </div>
+            <div class="cta-row" style="margin-top:12px">
+              <a class="btn" href="#" id="dl-androidbar15">Install</a>
+              <a class="btn" href="#" id="more-androidbar15">Details</a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="themes">
+      <div class="section-title">
+        <h2>Themes</h2>
+        <span class="muted">Everything visual</span>
+      </div>
+      <div class="grid cards">
+        <article class="card">
+          <div class="thumb" style="background-image:url('assets/crafty-grid.png')" role="img" aria-label="Crafty theme icon grid"></div>
+          <div class="content">
+            <h3>Crafty</h3>
+            <p>Modern icon pack with consistent geometry, soft shadows, and high legibility. Includes alt icons and masks.</p>
+            <div class="pill-row">
+              <span class="badge">SF Symbols‑inspired</span>
+              <span class="badge">2000+ Icons</span>
+            </div>
+            <div class="cta-row" style="margin-top:12px">
+              <a class="btn" href="#" id="crafty-changelog">Changelog</a>
+              <a class="btn" href="#" id="crafty-screens">Screens</a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="tweaks">
+      <div class="section-title">
+        <h2>Tweaks</h2>
+        <span class="muted">Quality of life mods</span>
+      </div>
+      <div class="grid cards">
+        <article class="card">
+          <div class="thumb" style="background-image:url('/Packages/AndroidBar15/Icon.png')" role="img" aria-label="AndroidBar15 in action"></div>
+          <div class="content">
+            <h3>AndroidBar15</h3>
+            <p>Lightweight gesture‑bar replacement with haptic feedback and edge‑swipe tuning.</p>
+            <div class="pill-row">
+              <span class="badge">Rootful / Rootless</span>
+              <span class="badge">A12–A16</span>
+            </div>
+            <div class="cta-row" style="margin-top:12px">
+              <a class="btn" href="#" id="androidbar15-changelog">Changelog</a>
+              <a class="btn" href="#" id="androidbar15-source">Source</a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="section-title">
+        <h2>Install</h2>
+        <span class="muted">Add the repo, then install packages</span>
+      </div>
+      <ol class="install-steps">
+        <li>Tap <strong>Open in Sileo</strong> or <strong>Open in Zebra</strong> above. (Or copy the repo URL.)</li>
+        <li>Confirm adding the source in your package manager.</li>
+        <li>Search for <strong>Crafty</strong> (Theme) or <strong>AndroidBar15</strong> (Tweak) and install.</li>
+      </ol>
+      <p class="muted">Tip: host this page on GitHub Pages and your packages on the same domain for a seamless setup.</p>
+    </section>
+
+    <section id="contact">
+      <div class="section-title">
+        <h2>Contact</h2>
+        <span class="muted">Issues, requests, or collabs</span>
+      </div>
+      <div class="panel"><div class="pad">
+        <p>Open an issue on <a id="ghLink" href="#">GitHub</a> or DM me on <a id="xLink" href="#">X/Twitter</a>.</p>
+      </div></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap">
+        <span>© <span id="year"></span> My Jailbreaking Repo</span>
+        <span class="muted">Built with ❤︎ • MIT Licensed</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Configure your repo + links here -->
+  <div id="repoRoot" data-repo="https://example.com/repo/" data-github="https://github.com/yourname/yourrepo" data-x="https://x.com/yourhandle"></div>
+
+  <script>
+    (function(){
+      const cfg = document.getElementById('repoRoot').dataset;
+      const repo = (cfg.repo || '').replace(/\/$/,'');
+      const gh = cfg.github || '#';
+      const x = cfg.x || '#';
+      const byId = id => document.getElementById(id);
+      const setHref = (id, href) => { const el = byId(id); if(el) el.setAttribute('href', href); };
+
+      // Wire external links
+      setHref('ghLink', gh);
+      setHref('xLink', x);
+
+      // Package URLs (replace with your actual depiction/package paths if different)
+      const pkg = name => `${repo}/packages/${name}`;
+      setHref('dl-crafty', pkg('crafty'));
+      setHref('more-crafty', `${repo}/depictions/crafty`);
+      setHref('dl-androidbar15', pkg('androidbar15'));
+      setHref('more-androidbar15', `${repo}/depictions/androidbar15`);
+      setHref('crafty-changelog', `${repo}/changelogs/crafty`);
+      setHref('crafty-screens', `${repo}/screens/crafty`);
+      setHref('androidbar15-changelog', `${repo}/changelogs/androidbar15`);
+      setHref('androidbar15-source', gh);
+
+      // Manager deep links
+      const sileo = `sileo://source/https://jb.mekabrine.space/repo/`;
+      const zebra = `zbra://sources/add/https://jb.mekabrine.space/repo/`;
+      setHref('openInSileo', sileo);
+      setHref('openInZebra', zebra);
+
+      // Copy URL
+      const copyBtn = byId('copyBtn');
+      if(copyBtn){
+        copyBtn.addEventListener('click', e => {
+          e.preventDefault();
+          navigator.clipboard.writeText(repo).then(()=>{
+            copyBtn.innerHTML = 'Copied!';
+            setTimeout(()=>copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-1" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="7" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>Copy Repo URL', 1200);
+          });
+        });
+      }
+
+      // Footer year
+      const y = document.getElementById('year'); if(y) y.textContent = new Date().getFullYear();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Camera</title>
+<style>
+  :root { --red:#ff3b30; }
+  html,body{height:100%}
+  body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;display:flex;flex-direction:column}
+  .view{position:relative;flex:1;background:#000;touch-action:manipulation}
+  video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+  /* Bottom-left control panel: zoom row above controls row */
+  .panel{
+    position:absolute;left:12px;right:12px;bottom:12px;
+    display:flex;flex-direction:column;gap:10px;pointer-events:none;
+  }
+  .row{display:flex;align-items:center;gap:10px;pointer-events:auto}
+  .spacer{flex:1}
+
+  /* Zoom row */
+  .zoom{
+    background:rgba(0,0,0,.45);
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:14px;
+    padding:8px 10px;
+    display:flex;align-items:center;gap:10px;min-width:220px;max-width:420px
+  }
+  .zoom label{font-size:13px;opacity:.9;white-space:nowrap}
+  .zoom input[type="range"]{flex:1}
+
+  /* Controls row: Flip + Mode switch + REC indicator (shutter sits bottom-right elsewhere) */
+  .controls{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:8px 10px;gap:10px}
+  .btn{
+    background:#1c1c1e;border:1px solid rgba(255,255,255,.2);color:#fff;
+    padding:8px 12px;border-radius:12px;font-size:14px
+  }
+
+  /* Segmented switch for Photo/Video */
+  .segment{
+    display:inline-flex;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.2);background:#1c1c1e
+  }
+  .segment button{
+    appearance:none;border:0;background:transparent;color:#fff;padding:8px 14px;font-size:14px
+  }
+  .segment button.active{
+    background:rgba(255,255,255,.18);
+    box-shadow:0 0 12px rgba(255,255,255,.25) inset;
+  }
+
+  /* REC indicator */
+  .rec{display:none;font-weight:700}
+  .rec.on{display:block}
+
+  /* Shutter: bottom-right, same size as before */
+  .shutter{
+    position:absolute;right:16px;bottom:16px;
+    width:66px;height:66px;border-radius:50%;border:6px solid #fff;
+  }
+  .shutter.photo{background:#fff}
+  .shutter.video{background:var(--red)}
+</style>
+</head>
+<body>
+  <div class="view" id="preview">
+    <video id="cam" autoplay muted playsinline></video>
+
+    <!-- bottom-left stacked panel -->
+    <div class="panel">
+      <!-- Zoom row ABOVE the buttons -->
+      <div class="row zoom">
+        <label for="zoomSlider">Zoom</label>
+        <input id="zoomSlider" type="range" min="1" max="1" step="0.1" value="1" disabled>
+      </div>
+
+      <!-- Buttons row: Flip + segmented Photo/Video + REC -->
+      <div class="row controls">
+        <button class="btn" id="flipBtn" title="Flip camera">Flip</button>
+
+        <div class="segment" role="tablist" aria-label="Mode">
+          <button id="mPhoto" role="tab" aria-selected="true" class="active">Photo</button>
+          <button id="mVideo" role="tab" aria-selected="false">Video</button>
+        </div>
+
+        <div class="spacer"></div>
+        <div id="rec" class="rec">● REC</div>
+      </div>
+    </div>
+
+    <!-- Shutter bottom-right -->
+    <button class="shutter photo" id="shot" aria-label="Shutter"></button>
+  </div>
+
+<script>
+let mode='photo';
+let stream=null, rec=null, chunks=[];
+let facing='environment';
+let lastTapTime=0;
+
+const vid=document.getElementById('cam');
+const recInd=document.getElementById('rec');
+const shutter=document.getElementById('shot');
+const zoomSlider=document.getElementById('zoomSlider');
+const preview=document.getElementById('preview');
+const mPhoto=document.getElementById('mPhoto');
+const mVideo=document.getElementById('mVideo');
+
+mPhoto.onclick=()=>{ mode='photo'; updateModeUI(); };
+mVideo.onclick=()=>{ mode='video'; updateModeUI(); };
+document.getElementById('flipBtn').onclick=flipCamera;
+
+function updateModeUI(){
+  mPhoto.classList.toggle('active', mode==='photo');
+  mVideo.classList.toggle('active', mode==='video');
+  mPhoto.setAttribute('aria-selected', mode==='photo');
+  mVideo.setAttribute('aria-selected', mode==='video');
+  shutter.classList.toggle('photo', mode==='photo');
+  shutter.classList.toggle('video', mode==='video');
+}
+
+async function startCamera(){
+  try{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ ideal:facing }, width:{ ideal:1280 }, height:{ ideal:720 } },
+      audio:true
+    });
+    vid.srcObject=stream;
+    await setupZoom();
+  }catch(e){
+    alert('Camera permission is required'); console.error(e);
+  }
+}
+
+async function setupZoom(){
+  zoomSlider.disabled=true;
+  const [track]=stream.getVideoTracks();
+  const caps=track.getCapabilities?.();
+  const settings=track.getSettings?.();
+  if(caps && 'zoom' in caps){
+    const min=caps.zoom.min ?? 1;
+    const max=caps.zoom.max ?? 1;
+    const step=caps.zoom.step ?? 0.1;
+    const val=settings?.zoom ?? min;
+    zoomSlider.min=min; zoomSlider.max=max; zoomSlider.step=step; zoomSlider.value=val;
+    zoomSlider.disabled=false;
+  }else{
+    zoomSlider.min=1; zoomSlider.max=3; zoomSlider.step=0.1; zoomSlider.value=1;
+    zoomSlider.disabled=false;
+  }
+  applyZoom(parseFloat(zoomSlider.value));
+}
+
+function applyZoom(v){
+  const [track]=stream.getVideoTracks();
+  if(track?.applyConstraints && track.getCapabilities && 'zoom' in track.getCapabilities()){
+    track.applyConstraints({ advanced:[{ zoom:v }] }).catch(console.warn);
+    vid.style.transform='';
+  }else{
+    vid.style.transform=`scale(${v})`;
+    vid.style.transformOrigin='center center';
+  }
+}
+
+async function flipCamera(){
+  if(rec && rec.state!=='inactive'){ alert('Stop recording before flipping.'); return; }
+  facing=(facing==='user')?'environment':'user';
+  await startCamera();
+}
+
+startCamera();
+
+window.addEventListener('pagehide',()=>{ if(stream) stream.getTracks().forEach(t=>t.stop()); });
+
+shutter.onclick=async ()=>{
+  if(mode==='photo'){
+    const c=document.createElement('canvas');
+    const w=vid.videoWidth||1280, h=vid.videoHeight||720;
+    c.width=w; c.height=h;
+    const ctx=c.getContext('2d');
+
+    const scaleMatch = vid.style.transform.match(/scale\(([\d.]+)\)/);
+    const cssZoom = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
+    if(cssZoom>1){
+      const cropW=w/cssZoom, cropH=h/cssZoom;
+      const sx=(w-cropW)/2, sy=(h-cropH)/2;
+      ctx.drawImage(vid, sx, sy, cropW, cropH, 0, 0, w, h);
+    }else{
+      ctx.drawImage(vid,0,0,w,h);
+    }
+
+    const data=c.toDataURL('image/jpeg',0.9);
+    const g=JSON.parse(localStorage.getItem('gallery_v1')||'[]');
+    g.unshift({type:'photo',data,ts:Date.now()});
+    localStorage.setItem('gallery_v1',JSON.stringify(g));
+    alert('Photo saved');
+  }else{
+    if(!rec || rec.state==='inactive'){
+      chunks=[];
+      const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+        ? {mimeType:'video/webm;codecs=vp8'} : undefined;
+      rec=new MediaRecorder(stream, options);
+      rec.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
+      rec.onstop=()=>{
+        const blob=new Blob(chunks,{type:chunks[0]?.type||'video/webm'});
+        const r=new FileReader();
+        r.onload=()=>{
+          const g=JSON.parse(localStorage.getItem('gallery_v1')||'[]');
+          g.unshift({type:'video',data:r.result,ts:Date.now()});
+          localStorage.setItem('gallery_v1',JSON.stringify(g));
+          alert('Video saved');
+        };
+        r.readAsDataURL(blob);
+        recInd.classList.remove('on');
+      };
+      rec.start();
+      recInd.classList.add('on');
+    }else{
+      rec.stop();
+    }
+  }
+};
+
+zoomSlider.addEventListener('input', e=>applyZoom(parseFloat(e.target.value)));
+
+preview.addEventListener('dblclick', flipCamera, {passive:true});
+preview.addEventListener('touchend', async (e)=>{
+  const now=Date.now();
+  if(now-lastTapTime<300){ await flipCamera(); lastTapTime=0; }
+  else{ lastTapTime=now; }
+},{passive:true});
+</script>
+</body>
+</html>

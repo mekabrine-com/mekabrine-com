@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alt App Store</title>
+
+<!-- iOS Web App -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Alt App Store">
+<link rel="apple-touch-icon" href="https://ios.mekabrine.space/altappstore/icon.jpeg">
+
+<style>
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0d0d1a;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+  header {
+    background: #12122a;
+    padding: 12px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  #content {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 60px;
+  }
+  .tabbar {
+    display: flex;
+    background: linear-gradient(90deg,#1a1f71,#5e00b8);
+    height: 60px;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.15);
+  }
+  .tabbar button {
+    flex: 1;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 6px 0;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .tabbar button.active { opacity: 1; font-weight: 600; }
+  .tabbar button:not(.active) { opacity: 0.6; }
+
+  .appCard {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    cursor: pointer;
+  }
+  .appCard img {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    margin-right: 12px;
+  }
+  .appInfo { flex: 1; }
+  .appInfo h3 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+  .appInfo p {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+    opacity: 0.7;
+    -webkit-line-clamp: 2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .downloadBtn {
+    background: #00aaff;
+    color: white;
+    border: none;
+    border-radius: 18px;
+    padding: 6px 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .searchView { padding: 16px; }
+  input.searchBox {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    font-size: 16px;
+  }
+
+  select {
+    background: #1a1f71;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 1rem;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  /* Popup styles */
+  .popup {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    backdrop-filter: blur(6px);
+  }
+  .popupContent {
+    background: #1c1c2e;
+    border-radius: 16px;
+    padding: 20px;
+    width: 90%;
+    max-width: 420px;
+    color: white;
+    text-align: center;
+    position: relative;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from {opacity:0; transform:scale(0.95);} to {opacity:1; transform:scale(1);} }
+  .popupContent img {
+    width: 100px;
+    height: 100px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+  }
+  .popupContent h2 { margin: 0; }
+  .popupContent p { opacity: 0.85; font-size: 0.9rem; }
+  .closePopup {
+    position: absolute;
+    right: 14px;
+    top: 10px;
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .popupContent .downloadBtn {
+    margin-top: 10px;
+    width: 100%;
+    border-radius: 12px;
+    padding: 10px 0;
+    font-size: 1rem;
+  }
+</style>
+</head>
+<body>
+<header id="title">Featured</header>
+
+<div id="content"></div>
+
+<div class="tabbar">
+  <button id="featuredBtn" class="active">Featured</button>
+  <button id="searchBtn">Search</button>
+  <button id="settingsBtn">Settings</button>
+</div>
+
+<script>
+const title = document.getElementById('title');
+const content = document.getElementById('content');
+const tabs = document.querySelectorAll('.tabbar button');
+
+const defaultSources = [
+  "https://alt.getutm.app",
+  "https://altstore.oatmealdome.me",
+  "https://flyinghead.github.io/flycast-builds/altstore.json",
+  "https://provenance-emu.com/apps.json",
+  "https://alt.crystall1ne.dev",
+  "https://ipa.cypwn.xyz/cypwn_altstore.json"
+];
+
+if (!localStorage.getItem("sources"))
+  localStorage.setItem("sources", JSON.stringify(defaultSources));
+
+if (!localStorage.getItem("installMethod"))
+  localStorage.setItem("installMethod", "sidestore");
+
+const installSchemes = {
+  sidestore: "sidestore://install?url=",
+  altstore: "altstore://install?url=",
+  trollstore: "apple-magnifier://install?url="
+};
+
+function getInstallScheme() {
+  const method = localStorage.getItem("installMethod") || "sidestore";
+  return installSchemes[method];
+}
+
+function setActive(tabName) {
+  tabs.forEach(btn => btn.classList.remove('active'));
+  document.getElementById(tabName + 'Btn').classList.add('active');
+  title.textContent = tabName.charAt(0).toUpperCase() + tabName.slice(1);
+}
+
+/* -------- FEATURED -------- */
+async function loadFeatured() {
+  content.innerHTML = "<p style='text-align:center;margin-top:20px;opacity:.7;'>Loading featured apps…</p>";
+  try {
+    const res = await fetch("https://alt.getutm.app/apps.json");
+    const json = await res.json();
+    renderApps(json.apps, content);
+  } catch {
+    content.innerHTML = `<p style='color:red;text-align:center;'>Failed to load featured source.</p>`;
+  }
+}
+
+/* -------- SEARCH (fast parallel version) -------- */
+async function loadSearch() {
+  setActive("search");
+  title.textContent = "Search";
+
+  content.innerHTML = `
+    <div class="searchView">
+      <input type="text" placeholder="Search your sources..." class="searchBox" id="searchBox">
+      <div id="results"></div>
+      <p id="loadingMsg" style="opacity:0.6;text-align:center;margin-top:1em;">Loading sources…</p>
+    </div>
+  `;
+
+  const sources = JSON.parse(localStorage.getItem("sources"));
+  const results = document.getElementById("results");
+  const loadingMsg = document.getElementById("loadingMsg");
+  const searchBox = document.getElementById("searchBox");
+
+  let allApps = [];
+  let completed = 0;
+
+  async function fetchWithTimeout(url, ms = 8000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ms);
+    try {
+      const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+      clearTimeout(timeout);
+      return res.ok ? await res.json() : null;
+    } catch {
+      clearTimeout(timeout);
+      return null;
+    }
+  }
+
+  const promises = sources.map(async (src) => {
+    const data = await fetchWithTimeout(src);
+    completed++;
+    loadingMsg.textContent = `Loaded ${completed}/${sources.length} sources…`;
+    if (data?.apps) {
+      data.apps.forEach(app => app._sourceName = src);
+      allApps = allApps.concat(data.apps);
+      renderApps(allApps.slice(0, 50), results);
+    }
+  });
+
+  await Promise.allSettled(promises);
+  loadingMsg.textContent = "All sources loaded.";
+  loadingMsg.style.opacity = 0.5;
+
+  searchBox.addEventListener("input", () => {
+    const query = searchBox.value.toLowerCase().trim();
+    const matches = allApps.filter(app =>
+      app.name?.toLowerCase().includes(query) ||
+      app.localizedDescription?.toLowerCase().includes(query)
+    );
+    renderApps(matches, results);
+  });
+}
+
+/* -------- SETTINGS -------- */
+function loadSettings() {
+  setActive("settings");
+  title.textContent = "Settings";
+  const currentMethod = localStorage.getItem("installMethod") || "sidestore";
+
+  content.innerHTML = `
+    <div class="searchView">
+      <h2>Settings</h2>
+
+      <label for="installMethod" style="display:block;margin-top:16px;font-weight:600;">Installation Method</label>
+      <select id="installMethod">
+        <option value="sidestore"${currentMethod === "sidestore" ? " selected" : ""}>SideStore</option>
+        <option value="altstore"${currentMethod === "altstore" ? " selected" : ""}>AltStore</option>
+        <option value="trollstore"${currentMethod === "trollstore" ? " selected" : ""}>TrollStore</option>
+      </select>
+
+      <button id="sourcesBtn" style="margin-top:20px;padding:12px 18px;border-radius:12px;border:none;background:#1a1f71;color:white;font-weight:600;">Manage Sources</button>
+    </div>
+  `;
+
+  const select = document.getElementById("installMethod");
+  select.addEventListener("change", () => {
+    localStorage.setItem("installMethod", select.value);
+    alert("Installation method set to " + select.options[select.selectedIndex].text);
+  });
+
+  document.getElementById("sourcesBtn").addEventListener("click", () => {
+    window.location.href = "https://ios.mekabrine.space/altappstore/webapp/sources-settings.html";
+  });
+}
+
+/* -------- APP CARD RENDERING -------- */
+function renderApps(apps, container = content) {
+  container.innerHTML = "";
+  if (!apps.length) {
+    container.innerHTML = "<p style='text-align:center;opacity:.6;margin-top:20px;'>No apps found.</p>";
+    return;
+  }
+  apps.forEach(app => {
+    const icon = app.iconURL || app.icon || "https://ios.mekabrine.space/altappstore/icon.png";
+    const desc = app.localizedDescription || "No description available.";
+    const card = document.createElement("div");
+    card.className = "appCard";
+    card.innerHTML = `
+      <img src="${icon}" alt="">
+      <div class="appInfo">
+        <h3>${app.name}</h3>
+        <p>${desc}</p>
+      </div>
+      <button class="downloadBtn">Download</button>
+    `;
+    const btn = card.querySelector(".downloadBtn");
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      const version = app.versions ? app.versions[0] : null;
+      const url = version?.downloadURL || app.downloadURL;
+      if (url) window.location.href = getInstallScheme() + encodeURIComponent(url);
+    });
+    card.addEventListener("click", () => showPopup(app));
+    container.appendChild(card);
+  });
+}
+
+/* -------- APP DETAIL POPUP -------- */
+function showPopup(app) {
+  const icon = app.iconURL || app.icon || "https://ios.mekabrine.space/altappstore/icon.png";
+  const desc = app.localizedDescription || "No description available.";
+  const dev = app.developerName || "Unknown Developer";
+  const source = app._sourceName || "Unknown Source";
+  const version = app.versions?.[0]?.version || app.version || "N/A";
+  const date = app.versions?.[0]?.versionDate || app.versionDate || "Unknown Date";
+  const download = app.versions?.[0]?.downloadURL || app.downloadURL;
+
+  const popup = document.createElement("div");
+  popup.className = "popup";
+  popup.innerHTML = `
+    <div class="popupContent">
+      <button class="closePopup">&times;</button>
+      <img src="${icon}" alt="">
+      <h2>${app.name}</h2>
+      <p><b>Developer:</b> ${dev}</p>
+      <p><b>Version:</b> ${version}</p>
+      <p><b>Release Date:</b> ${date}</p>
+      <p><b>Source:</b> ${source}</p>
+      <p style="margin-top:10px;">${desc}</p>
+      ${download ? `<button class="downloadBtn">Download</button>` : ""}
+    </div>
+  `;
+  popup.querySelector(".closePopup").onclick = () => popup.remove();
+  if (download) {
+    popup.querySelector(".downloadBtn").onclick = () => {
+      window.location.href = getInstallScheme() + encodeURIComponent(download);
+    };
+  }
+  popup.addEventListener("click", e => {
+    if (e.target === popup) popup.remove();
+  });
+  document.body.appendChild(popup);
+}
+
+/* -------- NAVIGATION -------- */
+document.getElementById('featuredBtn').addEventListener('click', () => { setActive('featured'); loadFeatured(); });
+document.getElementById('searchBtn').addEventListener('click', () => { loadSearch(); });
+document.getElementById('settingsBtn').addEventListener('click', () => { loadSettings(); });
+
+loadFeatured(); // default tab
+</script>
+</body>
+</html>

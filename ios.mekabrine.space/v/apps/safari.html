@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    <title>Safari</title>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+        .top { position: sticky; top: 0; background: #f8f8f8; border-bottom: 1px solid #ddd; padding: 10px 8px; display: flex; gap: 8px; align-items: center; z-index: 10; }
+        .bar { flex: 1; display: flex; gap: 6px; align-items: center; background: #e9e9ec; border-radius: 10px; padding: 8px; }
+        input { flex: 1; border: 0; background: transparent; font-size: 16px; outline: none; }
+        iframe { width: 100vw; height: calc(100vh - 52px); border: 0; background: #fff; }
+        button { border: 0; background: #ddd; border-radius: 8px; padding: 8px; }
+    </style>
+</head>
+<body>
+    <div class="top">
+        <button onclick="back()">&lsaquo;</button>
+        <button onclick="fwd()">&rsaquo;</button>
+        <div class="bar"><span>&#x1F512;</span><input id="u" placeholder="Search or enter website" onkeypress="if(event.key==='Enter') go()"></div>
+        <button onclick="reload()">&#x21bb;</button>
+    </div>
+    <iframe id="f" src="https://ios.mekabrine.space/v/get-web.php?url=https://example.com"></iframe>
+    <script>
+        const f = document.getElementById('f');
+        const u = document.getElementById('u');
+
+        f.onload = function() {
+            try {
+                const src = f.src;
+                const params = new URLSearchParams(new URL(src).search);
+                const realUrl = params.get('url');
+                if (realUrl) {
+                    u.value = decodeURIComponent(realUrl);
+                }
+            } catch (e) {}
+        };
+
+        function go() {
+            let v = u.value.trim();
+            if (!v) return;
+            if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+            f.src = 'https://ios.mekabrine.space/v/get-web.php?url=' + encodeURIComponent(v);
+        }
+
+        function reload() {
+            f.src = f.src;
+        }
+
+        function back() {
+            f.contentWindow.history.back();
+        }
+
+        function fwd() {
+            f.contentWindow.history.forward();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JailBoard</title>
+  <meta name="description" content="JailBoard setup instructions." />
+  <meta property="og:title" content="JailBoard" />
+  <meta property="og:description" content="Set up JailBoard." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#7c3aed" />
+  <!-- Favicons -->
+  <link rel="icon" href="https://jb.mekabrine.space/jailboard/icon.png?v=2" sizes="16x16" type="image/png" />
+  <link rel="icon" href="https://jb.mekabrine.space/jailboard/icon.png?v=2" sizes="32x32" type="image/png" />
+  <link rel="shortcut icon" href="https://jb.mekabrine.space/jailboard/icon.png?v=2" type="image/png" />
+  <link rel="apple-touch-icon" href="https://jb.mekabrine.space/jailboard/icon.png?v=2" sizes="180x180" />
+  <link rel="mask-icon" href="https://jb.mekabrine.space/jailboard/icon.svg" color="#7c3aed" />
+  <meta name="apple-mobile-web-app-title" content="JailBoard" />
+  <meta property="og:image" content="https://jb.mekabrine.space/jailboard/icon.png" />
+  <style>
+    :root{
+      --bg:#0b0d10; --surface:#111418; --card:#151922; --muted:#9aa4af; --fg:#eaeef2; --accent:#7c3aed; --accent-2:#22d3ee; --ring:rgba(124,58,237,.25);
+      --radius:18px; --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(1200px 800px at 100% -10%,rgba(34,211,238,.12),transparent 60%),
+                 radial-gradient(900px 600px at -10% 20%,rgba(124,58,237,.18),transparent 55%),var(--bg);
+         color:var(--fg); font:500 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"}
+    a{color:inherit}
+    .container{max-width:1100px;margin:0 auto;padding:32px 20px}
+    header{
+      position:sticky;top:0;z-index:10;background:rgba(11,13,16,.65);backdrop-filter:saturate(150%) blur(10px);
+      border-bottom:1px solid rgba(255,255,255,.06)
+    }
+    .nav{display:flex;align-items:center;gap:18px;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.4px}
+    .brand .logo{display:none}
+    .brand .logo-img{width:28px;height:28px;border-radius:8px;box-shadow:0 6px 18px var(--ring);object-fit:cover}
+    .links{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+    .links a{padding:10px 12px;border-radius:10px;color:#cfd6dd;text-decoration:none}
+    .links a:hover{background:rgba(255,255,255,.06);color:#fff}
+    .links .btn{margin-left:6px}
+    .hero{display:grid;gap:18px;grid-template-columns:1.2fr .8fr;align-items:stretch;padding:36px 0}
+    .panel{border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+      box-shadow:var(--shadow)}
+    .panel .pad{padding:26px}
+    h1{font-size:clamp(28px,3vw,40px);line-height:1.15;margin:0 0 10px}
+    .muted{color:var(--muted)}
+    .cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+    .btn{display:inline-flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.1);padding:12px 14px;border-radius:12px;
+         text-decoration:none;background:#12151a;color:#fff;cursor:pointer}
+    .btn.primary{background:linear-gradient(145deg,var(--accent),#5b20e6)}
+    .btn:hover{transform:translateY(-1px)}
+    .grid{display:grid;gap:18px}
+    .grid.cards{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+    .chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:rgba(124,58,237,.16);
+          color:#d9ccff;border:1px solid rgba(124,58,237,.35)}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:12px}
+    .card{border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column}
+    .card .thumb{aspect-ratio:16/9;background:#0f1217 url('assets/placeholder.png') center/cover no-repeat;border-bottom:1px solid rgba(255,255,255,.06)}
+    .card .content{padding:18px}
+    .card h3{margin:0 0 6px}
+    .card p{margin:0 0 12px;color:#c7d0d9}
+    .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+    section{padding:28px 0}
+    .section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .section-title h2{margin:0;font-size:22px}
+    .kicker{letter-spacing:.25em;font-size:12px;color:var(--muted);text-transform:uppercase}
+    .code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:rgba(0,0,0,.35); padding:2px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.08)}
+    footer{padding:26px 0;color:#96a0aa;border-top:1px solid rgba(255,255,255,.08)}
+    .install-steps{display:grid;gap:10px}
+    .install-steps li{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);padding:10px 12px;border-radius:12px}
+    .callout{background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.25);padding:12px 14px;border-radius:12px;color:#bff7ff}
+    @media (max-width:900px){.hero{grid-template-columns:1fr}}
+      /* Sidebar chapters */
+    .layout{display:grid;grid-template-columns:260px 1fr;gap:24px}
+    .sidebar{position:sticky;top:70px;align-self:start}
+    .toc{list-style:none;padding:0;margin:8px 0 0}
+    .toc li{margin:6px 0}
+    .toc a{display:block;padding:8px 10px;border-radius:10px;color:#cfd6dd;text-decoration:none;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03)}
+    .toc a:hover{background:rgba(255,255,255,.06);color:#fff}
+    @media (max-width:900px){.layout{grid-template-columns:1fr}.sidebar{position:static}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <div class="brand">
+        <img class="logo-img" src="https://jb.mekabrine.space/jailboard/icon.png" alt="JailBoard icon" />
+        <span>JailBoard</span>
+      </div>
+      <nav class="links" aria-label="Primary">
+        <a class="btn" href="https://jb.mekabrine.space" aria-label="Go to Home">Home</a>
+        <a href="#jailboard">JailBoard Setup</a>
+        <a href="#contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="layout">
+      <aside class="sidebar" aria-label="Chapters">
+        <nav>
+          <h2 class="kicker" style="margin:0 0 8px">Chapters</h2>
+          <ol class="toc">
+            <li><a href="#jailboard">JailBoard Setup</a></li>
+            <li><a href="#icons">Create JailBoard Themed Icons</a></li>
+            <li><a href="#theme">Create a JailBoard Theme</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ol>
+        </nav>
+      </aside>
+      <div class="content">
+    <section class="hero">
+      <div class="panel"><div class="pad">
+        <div class="kicker">Welcome</div>
+        <h1>JailBoard setup on a clean, minimal page</h1>
+        <div class="cta-row">
+          <a class="btn primary" id="copyBtn" href="#" aria-label="Copy repo URL"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-1" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="7" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>Copy Repo URL</a>
+          <a class="btn" id="openInSileo" href="#">Open in Sileo</a>
+          <a class="btn" id="openInZebra" href="#">Open in Zebra</a>
+          <a class="btn" id="downloadJBF" href="https://jb.mekabrine.space/jailboard/JailBoard-Files.zip">Download JailBoard-Files.zip</a>
+        </div>
+        <p class="muted" style="margin-top:8px">Deep links + a downloadable Shortcuts bundle for JailBoard.</p>
+      </div></div>
+
+      <div class="panel"><div class="pad">
+        <div class="kicker">Repo At A Glance</div>
+        <div class="grid">
+          <div class="chip" title="Packages published"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5v8l-9 5-9-5" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>Packages: <strong>2</strong></div>
+          <div class="chip" title="Supports iOS versions">iOS: <strong>15–18</strong></div>
+          <div class="chip" title="Archs">Architecture: <strong>Arm64 (Rootless)</strong></div>
+          <div class="chip" title="Repo status">Status: <strong>Active</strong></div>
+        </div>
+        <p class="muted" style="margin-top:10px">Adjust version badges below once you confirm compatibility.</p>
+      </div></div>
+    </section>
+
+    <!-- JailBoard: Setup + Prepare + Apply -->
+    <section id="jailboard">
+      <div class="section-title">
+        <h2>JailBoard Setup</h2>
+        <span class="muted">Install files, prepare a theme, apply it</span>
+      </div>
+
+      <div class="panel"><div class="pad">
+        <h3>How to set up JailBoard</h3>
+        <ol class="install-steps" style="margin:12px 0 0">
+          <li>Install the <strong>3 Shortcuts</strong> in <span class="code">JailBoard-Files.zip</span> into the iOS Shortcuts app (<a href="https://apps.apple.com/us/app/shortcuts/id915249334">App Store</a>).</li>
+          <li>Download any theme made for <strong>JailBoard</strong>.
+            <div class="callout" style="margin-top:8px">To verify a theme: unzip it and check for a file named <span class="code">JAILBOARD.txt</span>. If present, it’s a valid JailBoard theme.</div>
+          </li>
+        </ol>
+        <div class="cta-row"><a class="btn" href="https://jb.mekabrine.space/jailboard/JailBoard-Files.zip">Download JailBoard-Files.zip</a></div>
+      </div></div>
+
+      <div class="grid" style="margin-top:18px">
+        <div class="panel"><div class="pad">
+          <h3>How to prepare a theme</h3>
+          <ol class="install-steps">
+            <li>Run the <strong>JailBoard</strong> shortcut.</li>
+            <li>Select your theme <span class="code">.zip</span> file.</li>
+            <li>Choose whether to start with all icons selected, then manually select/deselect app names until only the apps installed on your iDevice remain.</li>
+            <li>Choose what to do next:
+              <ul>
+                <li><strong>Install now</strong>, or</li>
+                <li><strong>Save the completed theme</strong> to a file that anyone can tap to install later.</li>
+              </ul>
+            </li>
+          </ol>
+        </div></div>
+
+        <div class="panel"><div class="pad">
+          <h3>How to apply a theme</h3>
+          <h4 style="margin:.25rem 0 0">A. If you chose to <em>save</em> the completed theme to a file</h4>
+          <ol class="install-steps">
+            <li>Tap the <span class="code">.mobileconfig</span> file.</li>
+            <li>Allow the download to the profile.</li>
+            <li>Open <strong>Settings</strong> and tap <strong>Downloaded Profile</strong>.</li>
+            <li>Tap <strong>Install</strong>, enter your device passcode, tap <strong>Install</strong> again, then tap it one more time.</li>
+            <li>Check your Home Screen.</li>
+          </ol>
+
+          <h4 style="margin:1rem 0 0">B. If you chose to <em>install now</em></h4>
+          <ol class="install-steps">
+            <li>Read the popup then tap <strong>Done</strong> or the <strong>X</strong> (the X shows on iOS 26).</li>
+            <li>Allow the download of the profile.</li>
+            <li>Settings should open automatically. Tap <strong>Downloaded Profile</strong>.</li>
+            <li>Tap <strong>Install</strong>, enter your device passcode, tap <strong>Install</strong> again, then tap it one more time.</li>
+            <li>Check your Home Screen.</li>
+          </ol>
+        </div></div>
+      </div>
+    </section>
+
+    <section id="icons">
+      <div class="section-title">
+        <h2>How to create JailBoard themed icons</h2>
+        <span class="muted">Generate icons via Shortcuts and save them to a folder</span>
+      </div>
+      <div class="panel"><div class="pad">
+        <ol class="install-steps">
+          <li>Create a <strong>square icon</strong> for any app you want.</li>
+          <li>Tap <a href="https://www.icloud.com/shortcuts/bbf78491053b4aad9a7657c071281145">here</a> and add the shortcut to the iOS Shortcuts app.</li>
+          <li>Run the shortcut and immediately open the app you made an icon for (you have <strong>5 seconds</strong> to open the app).</li>
+          <li>Choose your created icon when prompted to select a photo.</li>
+          <li>Choose the folder where you want the themed icons to be saved.</li>
+        </ol>
+      </div></div>
+    </section>
+
+    <section id="theme">
+      <div class="section-title">
+        <h2>How to create a JailBoard theme</h2>
+        <span class="muted">Package your icons so JailBoard can use them</span>
+      </div>
+      <div class="panel"><div class="pad">
+        <ol class="install-steps">
+          <li>In your file manager, create a folder with your theme name. Example: <span class="code">Coolest-Theme</span></li>
+          <li>Inside that folder, create a blank text file named <span class="code">JAILBOARD.txt</span></li>
+          <li>In your theme folder, create a folder called <span class="code">ThemedIcons</span> and move all your themed icons into it.</li>
+          <li>Compress your entire theme folder into a <span class="code">.zip</span> file — you’re ready to go.</li>
+        </ol>
+      </div></div>
+    </section>
+
+    <section id="contact">
+      <div class="section-title">
+        <h2>Contact</h2>
+        <span class="muted">Issues, requests, or collabs</span>
+      </div>
+      <div class="panel"><div class="pad">
+        <p>Open an issue on <a id="ghLink" href="#">GitHub</a> or DM me on <a id="xLink" href="#">X/Twitter</a>.</p>
+      </div></div>
+    </section>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap">
+        <span>© <span id="year"></span> My Jailbreaking Repo</span>
+        <span class="muted">Built with ❤︎ • MIT Licensed</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Configure your repo + links here -->
+  <div id="repoRoot" data-repo="https://jb.mekabrine.space/repo/" data-github="https://github.com/yourname/yourrepo" data-x="https://x.com/yourhandle"></div>
+
+  <script>
+    (function(){
+      const cfg = document.getElementById('repoRoot').dataset;
+      const repo = (cfg.repo || '').replace(/\/$/, '');
+      const gh = cfg.github || '#';
+      const x = cfg.x || '#';
+      const byId = id => document.getElementById(id);
+      const setHref = (id, href) => { const el = byId(id); if(el) el.setAttribute('href', href); };
+
+      // Wire external links
+      setHref('ghLink', gh);
+      setHref('xLink', x);
+
+      // Package URLs (replace with your actual depiction/package paths if different)
+      const pkg = name => `${repo}/packages/${name}`;
+      setHref('dl-crafty', pkg('crafty'));
+      setHref('more-crafty', `${repo}/depictions/crafty`);
+      setHref('dl-androidbar15', pkg('androidbar15'));
+      setHref('more-androidbar15', `${repo}/depictions/androidbar15`);
+      setHref('crafty-changelog', `${repo}/changelogs/crafty`);
+      setHref('crafty-screens', `${repo}/screens/crafty`);
+      setHref('androidbar15-changelog', `${repo}/changelogs/androidbar15`);
+      setHref('androidbar15-source', gh);
+
+      // Manager deep links (pointed to jb.mekabrine.space)
+      const sileo = `sileo://source/https://jb.mekabrine.space/repo/`;
+      const zebra = `zbra://sources/add/https://jb.mekabrine.space/repo/`;
+      setHref('openInSileo', sileo);
+      setHref('openInZebra', zebra);
+
+      // Copy URL
+      const copyBtn = byId('copyBtn');
+      if(copyBtn){
+        copyBtn.addEventListener('click', e => {
+          e.preventDefault();
+          navigator.clipboard.writeText(repo).then(()=>{
+            copyBtn.innerHTML = 'Copied!';
+            setTimeout(()=>copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-1" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="7" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>Copy Repo URL', 1200);
+          });
+        });
+      }
+
+      // Footer year
+      const y = document.getElementById('year'); if(y) y.textContent = new Date().getFullYear();
+    })();
+  </script>
+</body>
+</html>

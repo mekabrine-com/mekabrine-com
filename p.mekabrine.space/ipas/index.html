@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alt App Store</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Alt App Store">
+<link rel="apple-touch-icon" href="https://p.mekabrine.space/ipas/icon.png">
+<link rel="icon" type="image/png" href="https://p.mekabrine.space/ipas/icon.png">
+
+<style>
+  * { max-width: 100vw; box-sizing: border-box; }
+  html, body { width: 100%; overflow-x: hidden; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0d0d1a;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  header {
+    background: rgba(18, 18, 42, 0.6);
+    padding: 12px 16px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(12px);
+    position: relative;
+  }
+
+  #content {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 60px;
+    width: 100%;
+  }
+
+  .tabbar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 60px;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    background: rgba(20, 20, 40, 0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 -1px 10px rgba(0,0,0,0.25);
+  }
+
+  .tabbar button {
+    flex: 1;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 6px 0;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .tabbar button.active { opacity: 1; font-weight: 600; }
+  .tabbar button:not(.active) { opacity: 0.6; }
+
+  .appCard {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    cursor: pointer;
+    transition: background 0.3s;
+    width: 100%;
+  }
+  /* unified icon size for app cards and group headers: 48x48 */
+  .appCard img {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    margin-right: 12px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  /* indent cards inside expanded groups slightly */
+  .groupBody .appCard { padding-left: 28px; }
+
+  .appInfo { flex: 1; min-width: 0; }
+  .appInfo h3 { margin: 0; font-size: 1.05rem; }
+  /* marquee infra */
+  .titleBox { overflow: hidden; white-space: nowrap; width: 100%; }
+  .titleMarquee { overflow: hidden; white-space: nowrap; width: 100%; }
+  .titleMarquee span { display: inline-block; padding-left: 100%; animation: marquee 8s linear infinite; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+
+  .appInfo p {
+    margin: 4px 0 0;
+    font-size: 0.9rem;
+    opacity: 0.7;
+    -webkit-line-clamp: 2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+  }
+  .downloadBtn {
+    background: #00aaff;
+    color: white;
+    border: none;
+    border-radius: 18px;
+    padding: 6px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .searchView { padding: 16px; width: 100%; }
+  .searchRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* NEW: sticky, blurred search/filter bar */
+  .searchBarSticky {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(20, 20, 40, 0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+    padding: 8px 16px;
+    margin: -16px -16px 8px -16px; /* stretch to edges within .searchView padding */
+  }
+
+  input.searchBox {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    font-size: 16px;
+    min-width: 0;
+  }
+  .filterBtn {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    color: white;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .filterPopup {
+    position: absolute;
+    z-index: 20;
+    background: rgba(28,28,46,0.98);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    font-size: 0.95rem;
+    width: 220px;
+  }
+  .filterPopup label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+  }
+
+  .warning {
+    background: rgba(255, 80, 80, 0.15);
+    border: 1px solid rgba(255,80,80,0.4);
+    border-radius: 10px;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: #ffb3b3;
+    line-height: 1.4;
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 0;
+    width: 100%;
+  }
+  .pagination button {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .popup {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    z-index: 999;
+    backdrop-filter: blur(6px);
+    overflow-y: auto;
+    padding: 40px 0;
+    width: 100%;
+  }
+  .popupContent {
+    background: rgba(28,28,46,0.9);
+    border-radius: 20px;
+    padding: 20px 24px;
+    width: 90%;
+    max-width: 480px;
+    color: white;
+    text-align: center;
+    position: relative;
+    animation: slideDown 0.25s ease;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    backdrop-filter: blur(12px);
+  }
+  @keyframes slideDown {
+    from {opacity:0; transform:translateY(-10px);}
+    to {opacity:1; transform:translateY(0);}
+  }
+
+  /* popup image static and 1.25x app card size (48 -> 60) */
+  .popupContent > img {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    object-fit: cover;
+    image-rendering: auto;
+  }
+
+  /* grouping */
+  .group { border-bottom: 1px solid rgba(255,255,255,0.1); width: 100%; }
+  .groupHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.03);
+    width: 100%;
+  }
+  .groupHeader:hover { background: rgba(255,255,255,0.06); }
+  .groupHeader .left { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; }
+  /* unified with appCard img size */
+  .groupHeader img { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+  .groupHeader h3 { margin: 0; font-size: 1.02rem; }
+  .groupHeader .titleBox, .groupHeader .titleMarquee { flex: 1; }
+  .groupHeader p {
+    margin: 2px 0 0;
+    opacity: 0.65;
+    font-size: 0.88rem;
+    -webkit-line-clamp: 1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .groupHeader .chev { width: 16px; height: 16px; fill: white; transition: transform .2s; margin-left: 8px; flex-shrink: 0; }
+  .group.open .chev { transform: rotate(180deg); }
+  .groupBody { display: none; }
+  .group.open .groupBody { display: block; }
+
+  .iconBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.12);
+    border: none;
+    border-radius: 999px;
+    width: 32px;
+    height: 32px;
+    margin-left: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .iconBtn svg { width: 18px; height: 18px; fill: white; }
+</style>
+</head>
+<body>
+
+<header id="title">
+  Browse
+</header>
+
+<div id="content"></div>
+
+<div class="tabbar">
+  <button id="browseBtn" class="active">Browse</button>
+  <button id="settingsBtn">Settings</button>
+</div>
+
+<script>
+const defaultSources = [
+  "https://p.mekabrine.space/ipas/big.json"
+];
+
+async function ensureDefaultSourcesFromRemote() {
+  localStorage.setItem("sources", JSON.stringify(["https://p.mekabrine.space/ipas/big.json"]));
+}
+
+/* default install method now LiveContainer */
+if (!localStorage.getItem("installMethod"))
+  localStorage.setItem("installMethod", "livecontainer");
+
+/* default for TS red toggle */
+if (localStorage.getItem("showTSRed") === null)
+  localStorage.setItem("showTSRed", "true");
+
+const installSchemes = {
+  sidestore: "sidestore://install?url=",
+  altstore: "altstore://install?url=",
+  trollstore: "apple-magnifier://install?url=",
+  livecontainer: "livecontainer://"
+};
+
+let allApps = [];
+let filteredApps = [];
+let currentPage = 1;
+const appsPerPage = 25;
+
+let groupedApps = [];
+let filteredGroupedApps = [];
+
+/* NEW: hold deep-link params for auto-open */
+const deepLinkParams = (() => {
+  const sp = new URLSearchParams(location.search);
+  const name = sp.get("name");
+  const bid = sp.get("bid");
+  const v = sp.get("v");
+  if (name || bid || v) return { name, bid, v };
+  return null;
+})();
+
+const searchFilters = {
+  title: true,
+  developer: false,
+  description: false,
+  bundle: false
+};
+
+function getInstallScheme() {
+  const method = localStorage.getItem("installMethod") || "livecontainer";
+  return installSchemes[method];
+}
+function getInstallMethod() {
+  return localStorage.getItem("installMethod") || "livecontainer";
+}
+function getShowTSRed() {
+  return localStorage.getItem("showTSRed") !== "false";
+}
+
+function setActive(tab) {
+  document.querySelectorAll('.tabbar button').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(tab + 'Btn').classList.add('active');
+}
+
+async function fetchWithRetry(url, timeout = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(res.status);
+    return await res.json();
+  } catch (e) {
+    console.warn("Direct fetch failed for:", url, e.message);
+    try {
+      const proxyURL = `/ipas/proxy.php?url=${encodeURIComponent(url)}`;
+      const proxyRes = await fetch(proxyURL, { cache: "no-store" });
+      if (!proxyRes.ok) throw new Error("Proxy fetch failed");
+      return await proxyRes.json();
+    } catch (err) {
+      console.error("Proxy fetch also failed:", url, err);
+      return null;
+    }
+  }
+}
+
+async function loadBrowse() {
+  setActive("browse");
+  content.innerHTML = `
+    <div class="searchView">
+      <div class="searchBarSticky">
+        <div class="searchRow">
+          <input type="text" placeholder="Browse your sources..." class="searchBox" id="searchBox">
+          <button id="filterBtn" class="filterBtn" title="Filters">Filters</button>
+        </div>
+      </div>
+      <div class="warning">⚠️ Some apps may contain malware. Be cautious of piracy when using TrollStore.</div>
+      <div id="results"></div>
+      <div id="pagination"></div>
+      <p id="loadingMsg" style="opacity:0.6;text-align:center;margin-top:1em;">Loading sources…</p>
+    </div>
+  `;
+  setupFilterPopup();
+  await loadSources();
+}
+
+function setupFilterPopup() {
+  const btn = document.getElementById("filterBtn");
+  if (!btn) return;
+  let popup;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    if (popup) { popup.remove(); popup = null; return; }
+    popup = document.createElement("div");
+    popup.className = "filterPopup";
+    popup.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px;">Search fields</div>
+      <label><input type="checkbox" id="fTitle"${searchFilters.title?" checked":""}> Title</label>
+      <label><input type="checkbox" id="fDev"${searchFilters.developer?" checked":""}> Developer</label>
+      <label><input type="checkbox" id="fDesc"${searchFilters.description?" checked":""}> Description</label>
+      <label><input type="checkbox" id="fBundle"${searchFilters.bundle?" checked":""}> Bundle ID</label>
+    `;
+    document.body.appendChild(popup);
+    const rect = btn.getBoundingClientRect();
+    popup.style.left = Math.min(rect.left, window.innerWidth - 220) + "px";
+    popup.style.top = rect.bottom + 8 + "px";
+
+    popup.querySelector("#fTitle").onchange = ev => { searchFilters.title = ev.target.checked; applySearch(); };
+    popup.querySelector("#fDev").onchange = ev => { searchFilters.developer = ev.target.checked; applySearch(); };
+    popup.querySelector("#fDesc").onchange = ev => { searchFilters.description = ev.target.checked; applySearch(); };
+    popup.querySelector("#fBundle").onchange = ev => { searchFilters.bundle = ev.target.checked; applySearch(); };
+
+    document.addEventListener("click", closeOnOutside, { once: true });
+    function closeOnOutside(ev) {
+      if (!popup.contains(ev.target) && ev.target !== btn) {
+        popup.remove();
+        popup = null;
+      }
+    }
+  };
+}
+
+async function loadSources() {
+  await ensureDefaultSourcesFromRemote();
+
+  const sources = JSON.parse(localStorage.getItem("sources"));
+  const loadingMsg = document.getElementById("loadingMsg");
+  const searchBox = document.getElementById("searchBox");
+  allApps = [];
+
+  let completed = 0;
+  let failedSources = [];
+
+  const promises = sources.map(async src => {
+    try {
+      const data = await fetchWithRetry(src);
+      if (data?.apps) {
+        data.apps.forEach(app => app._sourceName = src);
+        allApps = allApps.concat(data.apps);
+      } else failedSources.push(src);
+    } catch { failedSources.push(src); }
+    finally {
+      completed++;
+      loadingMsg.textContent = `Loaded ${completed}/${sources.length} sources…`;
+    }
+  });
+
+  await Promise.allSettled(promises);
+
+  groupedApps = groupByNameAndBundle(allApps);
+  filteredGroupedApps = groupedApps.slice();
+
+  loadingMsg.innerHTML = failedSources.length
+    ? `⚠️ Some sources failed:<br>${failedSources.join("<br>")}`
+    : "✅ All sources loaded successfully.";
+
+  /* NEW: auto-open deep link match after data loads */
+  if (deepLinkParams) {
+    tryOpenFromDeepLink(deepLinkParams);
+  }
+
+  renderPage(1);
+
+  searchBox.addEventListener("input", applySearch);
+}
+
+function applySearch() {
+  const searchBox = document.getElementById("searchBox");
+  const q = (searchBox?.value || "").toLowerCase().trim();
+  if (!q) {
+    filteredGroupedApps = groupedApps.slice();
+    renderPage(1);
+    return;
+  }
+  filteredGroupedApps = groupedApps.filter(group =>
+    group.some(app => {
+      const name = (app.name || "").toLowerCase();
+      const dev = (app.developerName || "").toLowerCase();
+      const desc = (app.localizedDescription || "").toLowerCase();
+      const bid = (getBundleId(app) || "").toLowerCase();
+      return (
+        (searchFilters.title && name.includes(q)) ||
+        (searchFilters.developer && dev.includes(q)) ||
+        (searchFilters.description && desc.includes(q)) ||
+        (searchFilters.bundle && bid.includes(q))
+      );
+    })
+  );
+  renderPage(1);
+}
+
+function isTrollStoreApp(app) {
+  const title = app.name?.toLowerCase() || "";
+  const desc = app.localizedDescription?.toLowerCase() || "";
+  const source = app._sourceName?.toLowerCase() || "";
+  return (
+    title.includes("trollstore") ||
+    desc.includes("trollstore") ||
+    title.includes("ts ") ||
+    desc.includes("ts ") ||
+    source === "https://p.mekabrine.space/ipas/repo/cypwn_ts.json"
+  );
+}
+
+function getVersionString(app) {
+  const v = app.versions?.[0]?.version || app.version || "0";
+  return String(v);
+}
+function compareVersions(a, b) {
+  const aParts = String(a).split('.').map(x => parseInt(x.replace(/\D/g,'')) || 0);
+  const bParts = String(b).split('.').map(x => parseInt(x.replace(/\D/g,'')) || 0);
+  const len = Math.max(aParts.length, bParts.length);
+  for (let i = 0; i < len; i++) {
+    const av = aParts[i] || 0, bv = bParts[i] || 0;
+    if (av > bv) return 1;
+    if (av < bv) return -1;
+  }
+  return 0;
+}
+function normNoSpaceLower(s) {
+  return (s || "").toLowerCase().replace(/\s+/g, "");
+}
+function getBundleId(app) {
+  return app.bundleIdentifier || app.bundleID || app.bundleId || app.packageIdentifier || "";
+}
+function groupByNameAndBundle(apps) {
+  const map = new Map();
+  apps.forEach(app => {
+    const bid = normNoSpaceLower(getBundleId(app));
+    const name = normNoSpaceLower(app.name || "");
+    const key = name + "||" + bid; // both must match, case-insensitive, spaces ignored
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(app);
+  });
+  const groups = Array.from(map.values()).map(list => {
+    list.sort((a, b) => compareVersions(getVersionString(b), getVersionString(a)));
+    return list;
+  });
+  groups.sort((ga, gb) => (ga[0].name || "").localeCompare(gb[0].name || "", 'en', {sensitivity:'base'}));
+  return groups;
+}
+
+function renderPage(page = 1) {
+  currentPage = page;
+  const start = (page - 1) * appsPerPage;
+  const end = start + appsPerPage;
+  const groupsToShow = filteredGroupedApps.slice(start, end);
+  renderGrouped(groupsToShow, document.getElementById("results"));
+  renderPagination(filteredGroupedApps.length);
+  document.getElementById("content").scrollTo({ top: 0, behavior: "smooth" });
+  applyMarquees(document); // apply after render
+}
+
+function renderPagination(totalApps) {
+  const totalPages = Math.ceil(totalApps / appsPerPage) || 1;
+  const pagination = document.getElementById("pagination");
+  pagination.innerHTML = `
+    <div class="pagination">
+      <button ${currentPage===1?"disabled":""} onclick="renderPage(${currentPage-1})">Prev</button>
+      <span>Page ${currentPage} of ${totalPages}</span>
+      <button ${currentPage===totalPages?"disabled":""} onclick="renderPage(${currentPage+1})">Next</button>
+    </div>
+  `;
+}
+
+function installAction(url, isTS) {
+  const method = getInstallMethod();
+
+  if (method === "livecontainer") {
+    if (!url) return;
+    navigator.clipboard?.writeText(url).catch(()=>{});
+    const popup = document.createElement("div");
+    popup.className = "popup";
+    popup.innerHTML = `
+      <div class="popupContent" style="max-width:560px;text-align:left">
+        <button class="closePopup" aria-label="Close" style="position:absolute;right:12px;top:8px;background:none;border:none;color:white;font-size:24px;cursor:pointer;">&times;</button>
+        <h2 style="text-align:center;margin:6px 0 12px;">LiveContainer Install</h2>
+        <ol style="line-height:1.6;padding-left:18px;margin:0;">
+          <li>When LiveContainer opens, tap the <b>+</b> at the top left.</li>
+          <li>Choose <b>Install from URL</b>.</li>
+          <li>Paste from your clipboard to install.</li>
+        </ol>
+        <p style="opacity:.75;margin-top:10px;">The download URL has been copied to your clipboard.</p>
+      </div>
+    `;
+    popup.querySelector(".closePopup").onclick = () => popup.remove();
+    popup.onclick = e => { if (e.target === popup) popup.remove(); };
+    document.body.appendChild(popup);
+    try { window.location.href = getInstallScheme(); } catch(e) {}
+    return;
+  }
+
+  if (isTS && method !== "trollstore") {
+    alert("This IPA is only for TrollStore (iOS 14.1–16.7)");
+    return;
+  }
+
+  if (url) {
+    window.location.href = getInstallScheme() + encodeURIComponent(url);
+  }
+}
+
+/* grouped renderer with ungrouping for single-item groups, TS red toggle, and yellow for no-image */
+function renderGrouped(groups, container) {
+  const method = getInstallMethod();
+  const showTSRed = getShowTSRed();
+  container.innerHTML = "";
+  if (!groups.length) {
+    container.innerHTML = "<p style='text-align:center;opacity:.6;margin-top:20px;'>No apps found.</p>";
+    return;
+  }
+
+  groups.forEach(group => {
+    if (group.length === 1) {
+      const app = group[0];
+      const isTS = isTrollStoreApp(app);
+      const hasIcon = !!(app.iconURL || app.icon);
+      const appIcon = hasIcon ? (app.iconURL || app.icon) : "https://p.mekabrine.space/ipas/icon.png";
+      const appDesc = app.localizedDescription || "No description available.";
+      const versionObj = app.versions ? app.versions[0] : null;
+      const url = versionObj?.downloadURL || app.downloadURL || "";
+      const noImage = !hasIcon;
+
+      const card = document.createElement("div");
+      card.className = "appCard";
+      if (noImage) card.style.background = "rgba(255, 255, 0, 0.15)";
+      if (isTS && method !== "trollstore" && showTSRed) {
+        card.style.background = "rgba(255, 0, 0, 0.15)";
+      }
+
+      card.innerHTML = `
+        <img src="${appIcon}">
+        <div class="appInfo">
+          <h3><div class="titleBox" data-auto-marquee>${app.name}</div></h3>
+          <p>${appDesc}</p>
+        </div>
+        <button class="downloadBtn">Install</button>
+        ${
+          url
+            ? `<a class="iconBtn" href="${url}" download title="Download IPA" onclick="event.stopPropagation()">
+                 <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm7-14v8l3-3 1.41 1.41L12 18.83l-4.41-4.42L9 11l3 3V6h0z"/></svg>
+               </a>`
+            : ""
+        }
+      `;
+
+      const btn = card.querySelector(".downloadBtn");
+      if (btn) {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          installAction(url, isTS);
+        };
+      }
+
+      card.onclick = () => showPopup(app);
+      container.appendChild(card);
+      applyMarquees(card);
+      return;
+    }
+
+    const top = group[0];
+    const hasGroupIcon = !!(top.iconURL || top.icon);
+    const icon = hasGroupIcon ? (top.iconURL || top.icon) : "https://p.mekabrine.space/ipas/icon.png";
+    const desc = top.localizedDescription || "No description available.";
+
+    const groupEl = document.createElement("div");
+    groupEl.className = "group";
+
+    groupEl.innerHTML = `
+      <div class="groupHeader">
+        <div class="left">
+          <img src="${icon}">
+          <div style="min-width:0;width:100%;">
+            <h3><div class="titleBox" data-auto-marquee>${top.name}</div></h3>
+            <p>${desc}</p>
+          </div>
+        </div>
+        <svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+      </div>
+      <div class="groupBody"></div>
+    `;
+
+    const body = groupEl.querySelector(".groupBody");
+
+    group.forEach(app => {
+      const isTS = isTrollStoreApp(app);
+      const hasIcon = !!(app.iconURL || app.icon);
+      const appIcon = hasIcon ? (app.iconURL || app.icon) : icon;
+      const appDesc = app.localizedDescription || "No description available.";
+      const versionObj = app.versions ? app.versions[0] : null;
+      const url = versionObj?.downloadURL || app.downloadURL || "";
+      const noImage = !hasIcon;
+
+      const card = document.createElement("div");
+      card.className = "appCard";
+      if (noImage) card.style.background = "rgba(255, 255, 0, 0.15)";
+      if (isTS && method !== "trollstore" && showTSRed) {
+        card.style.background = "rgba(255, 0, 0, 0.15)";
+      }
+
+      card.innerHTML = `
+        <img src="${appIcon}">
+        <div class="appInfo">
+          <h3><div class="titleBox" data-auto-marquee>${app.name}</div></h3>
+          <p>${appDesc}</p>
+        </div>
+        <button class="downloadBtn">Install</button>
+        ${
+          url
+            ? `<a class="iconBtn" href="${url}" download title="Download IPA" onclick="event.stopPropagation()">
+                 <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm7-14v8l3-3 1.41 1.41L12 18.83l-4.41-4.42L9 11l3 3V6h0z"/></svg>
+               </a>`
+            : ""
+        }
+      `;
+
+      const btn = card.querySelector(".downloadBtn");
+      if (btn) {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          installAction(url, isTS);
+        };
+      }
+
+      card.onclick = () => showPopup(app);
+      body.appendChild(card);
+      applyMarquees(card);
+    });
+
+    groupEl.querySelector(".groupHeader").onclick = () => {
+      groupEl.classList.toggle("open");
+    };
+
+    container.appendChild(groupEl);
+    applyMarquees(groupEl);
+  });
+}
+
+/* popup shows Bundle ID and uses conditional marquee + NEW share button */
+function showPopup(app) {
+  const icon = app.iconURL || app.icon || "https://p.mekabrine.space/ipas/icon.png";
+  const desc = app.localizedDescription || "No description available.";
+  const dev = app.developerName || "Unknown Developer";
+  const version = app.versions?.[0]?.version || app.version || "N/A";
+  const date = app.versions?.[0]?.versionDate || app.versionDate || "Unknown Date";
+  const bundleId = getBundleId(app) || "Unknown Bundle ID";
+  const download = app.versions?.[0]?.downloadURL || app.downloadURL;
+  const shareUrl = `https://p.mekabrine.space/ipas?name=${encodeURIComponent(app.name || "")}&bid=${encodeURIComponent(bundleId)}&v=${encodeURIComponent(version)}`;
+
+  const popup = document.createElement("div");
+  popup.className = "popup";
+  popup.innerHTML = `
+    <div class="popupContent">
+      <!-- NEW share button (top-right), close remains at far right -->
+      <button class="sharePopup" title="Share" aria-label="Share" style="position:absolute;right:44px;top:8px;background:none;border:none;color:white;cursor:pointer;">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M14 9l-1.41 1.41L15.17 13H10a4 4 0 1 0 0 8h1v-2h-1a2 2 0 1 1 0-4h5.17l-2.58 2.59L14 19l5-5-5-5zM12 5V3H4v18h8v-2H6V5h6z"/></svg>
+      </button>
+      <button class="closePopup" aria-label="Close" style="position:absolute;right:12px;top:8px;background:none;border:none;color:white;font-size:24px;cursor:pointer;">&times;</button>
+      <img src="${icon}">
+      <h2><div class="titleBox" data-auto-marquee>${app.name}</div></h2>
+      <div class="popupContentInner" style="text-align:left">
+        <p><b>Developer:</b> ${dev}</p>
+        <p><b>Version:</b> ${version}</p>
+        <p><b>Release Date:</b> ${date}</p>
+        <p><b>Bundle ID:</b> ${bundleId}</p>
+        <p style="margin-top:10px;">${desc}</p>
+      </div>
+      ${download ? `<button class="downloadBtn">Install</button>` : ""}
+    </div>
+  `;
+
+  /* NEW: share handler (Apple share sheet when available) */
+  const shareBtn = popup.querySelector(".sharePopup");
+  if (shareBtn) {
+    shareBtn.onclick = async (e) => {
+      e.stopPropagation();
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: app.name || "App", url: shareUrl });
+        } else {
+          await navigator.clipboard?.writeText(shareUrl);
+          alert("Share link copied:\n" + shareUrl);
+        }
+      } catch (_) { /* user cancelled or unsupported */ }
+    };
+  }
+
+  const isTS = isTrollStoreApp(app);
+  const btn = popup.querySelector(".downloadBtn");
+  if (btn) {
+    btn.onclick = () => installAction(download, isTS);
+  }
+  popup.querySelector(".closePopup").onclick = () => popup.remove();
+  popup.onclick = e => { if (e.target === popup) popup.remove(); };
+  document.body.appendChild(popup);
+  applyMarquees(popup);
+}
+
+/* NEW: deep-link open by query params (?name=&bid=&v=) */
+function tryOpenFromDeepLink(params) {
+  if (window._deepLinkOpened) return;
+  const wantName = normNoSpaceLower(params.name || "");
+  const wantBid  = normNoSpaceLower(params.bid || "");
+  const wantVer  = (params.v || "").trim();
+
+  if (!wantName && !wantBid && !wantVer) return;
+
+  // find candidates matching name & bundle (case/space-insensitive)
+  const candidates = allApps.filter(a =>
+    (!wantName || normNoSpaceLower(a.name || "") === wantName) &&
+    (!wantBid  || normNoSpaceLower(getBundleId(a)) === wantBid)
+  );
+
+  if (!candidates.length) return;
+
+  // choose best by exact version first, otherwise closest by version difference
+  let chosen = candidates.find(a => String(getVersionString(a)) === wantVer);
+  if (!chosen) {
+    // compute minimal absolute compare distance
+    let best = null, bestScore = Infinity;
+    for (const a of candidates) {
+      const cur = String(getVersionString(a));
+      const score = Math.abs(compareVersions(cur, wantVer));
+      if (score < bestScore) { bestScore = score; best = a; }
+    }
+    chosen = best || candidates[0];
+  }
+
+  if (chosen) {
+    window._deepLinkOpened = true;
+    showPopup(chosen);
+  }
+}
+
+/* settings as popup with legend updates */
+function loadSettingsPopup() {
+  const method = getInstallMethod();
+  const showTSRed = getShowTSRed();
+
+  const popup = document.createElement("div");
+  popup.className = "popup";
+  popup.innerHTML = `
+    <div class="popupContent" style="max-width:560px;text-align:left">
+      <button class="closePopup" aria-label="Close" style="position:absolute;right:12px;top:8px;background:none;border:none;color:white;font-size:24px;cursor:pointer;">&times;</button>
+      <h2 style="text-align:center;margin:6px 0 12px;">Settings</h2>
+      <label for="installMethod" style="display:block;margin-top:6px;font-weight:600;">Installation Method</label>
+      <select id="installMethod" style="margin-top:6px;padding:10px;border-radius:10px;width:100%;">
+        <option value="livecontainer"${method==="livecontainer"?" selected":""}>LiveContainer</option>
+        <option value="sidestore"${method==="sidestore"?" selected":""}>SideStore</option>
+        <option value="altstore"${method==="altstore"?" selected":""}>AltStore</option>
+        <option value="trollstore"${method==="trollstore"?" selected":""}>TrollStore</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:16px;">
+        <input type="checkbox" id="tsRedToggle"${showTSRed ? " checked": ""}>
+        Show trollstore apps as red
+      </label>
+      <div style="margin-top:14px;opacity:.9;">
+        <div style="font-weight:600;margin-bottom:6px;">If an app has a background, this is what they mean:</div>
+        <div>🟥 - trollstore app only</div>
+        <div>🟨 - might not be available/file might be gone</div>
+      </div>
+    </div>
+  `;
+  popup.querySelector(".closePopup").onclick = () => popup.remove();
+  popup.onclick = e => { if (e.target === popup) popup.remove(); };
+  document.body.appendChild(popup);
+
+  document.getElementById("installMethod").onchange = e => {
+    localStorage.setItem("installMethod", e.target.value);
+    alert("Installation method set to " + e.target.selectedOptions[0].text);
+  };
+  document.getElementById("tsRedToggle").onchange = e => {
+    localStorage.setItem("showTSRed", e.target.checked ? "true" : "false");
+    renderPage(currentPage);
+  };
+}
+
+/* apply marquee only if the title actually overflows */
+function applyMarquees(root=document) {
+  const nodes = root.querySelectorAll('[data-auto-marquee]');
+  nodes.forEach(node => {
+    if (node.dataset.marqueeApplied === "true") return;
+    const needsMarquee = node.scrollWidth > node.clientWidth + 2;
+    if (needsMarquee) {
+      const text = node.textContent;
+      node.innerHTML = `<div class="titleMarquee"><span>${escapeHtml(text)}</span></div>`;
+      node.dataset.marqueeApplied = "true";
+    }
+  });
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+document.getElementById('browseBtn').onclick = loadBrowse;
+document.getElementById('settingsBtn').onclick = loadSettingsPopup;
+
+loadBrowse();
+</script>
+</body>
+</html>

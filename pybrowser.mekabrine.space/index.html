@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PyBrowser</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #111; color: #eee; }
+header { background: #222; padding: 20px; text-align: center; font-size: 28px; }
+nav { background: #333; padding: 10px; text-align: center; }
+nav a { color: #fff; margin: 0 15px; text-decoration: none; font-size: 18px; }
+nav a:hover { text-decoration: underline; }
+.container { padding: 25px; max-width: 900px; margin: auto; }
+.download-btn { background: #4caf50; color: #fff; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-size: 20px; }
+.download-btn:hover { background: #45a049; }
+pre { background: #222; padding: 15px; border-radius: 6px; overflow-x: auto; }
+h2 { margin-top: 40px; }
+</style>
+</head>
+<body>
+<header>PyBrowser - Built by a Gamer, For Gamers (so, yes, it's just for Windows :p)</header>
+<nav>
+<a href="#home">Home</a>
+<a href="#instructions">Instructions</a>
+<a href="#versions">Versions</a>
+</nav>
+
+
+<div class="container" id="home">
+<h2>Fast. Lightweight. Fully Functional.</h2>
+<p>PyBrowser is a custom web browser written entirely in Python, designed for speed, simplicity, and gamer‑grade performance.</p>
+<p>Customizable, efficient, and powered by PyQt6 with WebEngine backend.</p>
+
+
+<a class="download-btn" href="https://pybrowser.mekabrine.space/latest.py">Download Latest Version</a>
+<div style="margin-top:15px; background:#222; padding:12px; border-left:4px solid #4caf50; max-width:500px;">
+<strong>Note:</strong> Comments are provided by ChatGPT for anyone wanting to modify the code.
+</div>
+</div>
+
+
+<div class="container" id="instructions">
+<h2>Installation Instructions</h2>
+
+
+<h3>1. Install Required Python Packages</h3>
+<p>Run this command in Command Prompt:</p>
+<pre>python -m pip install PyQt6 PyQt6-WebEngine pywin32 requests</pre>
+<p>Or this if it gave an error:</p>
+<pre>python3 -m pip install PyQt6 PyQt6-WebEngine pywin32 requests</pre>
+
+
+<h3>2. Windows: Installing Python</h3>
+<p>
+Visit the official Python website:<br>
+<a href="https://www.python.org/downloads/" style="color:#6cf;">https://www.python.org/downloads/</a>
+</p>
+<p>
+Download the latest version for Windows, run the installer,<br>
+and make sure to check <strong>"Add Python to PATH"</strong> before installing.
+</p>
+</div>
+
+
+<div class="container" id="versions">
+<h2>Available Versions</h2>
+<p>The list below is loaded dynamically from the server using getversions.php.</p>
+
+
+<div id="version-list">Loading...</div>
+
+
+<script>
+fetch("https://pybrowser.mekabrine.space/getversions.php")
+.then(response => response.json())
+.then(data => {
+let html = "<ul>";
+data.forEach(file => {
+html += `<li><a href="https://pybrowser.mekabrine.space/versions/${file}" style="color:#6cf;">${file}</a></li>`;
+});
+html += "</ul>";
+document.getElementById("version-list").innerHTML = html;
+})
+.catch(() => {
+document.getElementById("version-list").innerHTML = "Error loading versions.";
+});
+</script>
+</div>
+
+
+</body>
+</html>

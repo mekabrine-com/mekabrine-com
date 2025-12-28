@@ -1,0 +1,28 @@
+Package: space.mekabrine.graybadge
+Version: 1.1
+Architecture: iphoneos-arm64
+Maintainer: Me
+Filename: ./debians/themes/badges/space.mekabrine.graybadge_1.1_iphoneos-arm64.deb
+Size: 1892
+MD5sum: 2a42fbe0e49d481b6df9c7b36cbd3f86
+SHA1: bffb2f993c4b74d5cb31f6b042e53f36cde1c44d
+SHA256: 83d245ef8c6e62e4db073d7a7334db7b37f78b3f35b6f993e858f25c4a28df97
+Section: Badges
+Priority: optional
+Description: Badges but gray, so fucking cool, i know
+Name: Gray Badge
+
+Package: space.mekabrine.presets.daily
+Version: 1.0
+Architecture: iphoneos-arm64
+Maintainer: Me
+Filename: ./debians/presets/space.mekabrine.presets.daily_1.0_iphoneos-arm64.deb
+Size: 493
+MD5sum: 2a42fbe0e49d481b6df9c7b36cbd3f86
+SHA1: bffb2f993c4b74d5cb31f6b042e53f36cde1c44d
+SHA256: 83d245ef8c6e62e4db073d7a7334db7b37f78b3f35b6f993e858f25c4a28df97
+Section: Presests
+Priority: optional
+Description: Preset list of tweaks for a daily phone
+Name: Daily
+Depends: firmware (>= 15.0), com.qiop1379.swipeextenderx, com.spark.snowboard, com.p2kdev.underdock, com.opa334.choicy, com.nightwind.onesettingslite, com.lclrc.squidgesture, com.ichitaso.iconorder, com.hitori.fiveicondock, com.exile90.icleanerpro, me.tomt000.copylog

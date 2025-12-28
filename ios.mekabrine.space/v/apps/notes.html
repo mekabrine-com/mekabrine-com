@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Notes</title>
+<style>
+  body{margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif}
+  .top{padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between}
+  textarea{width:100%;height:calc(100vh - 54px);border:0;outline:none;padding:16px;font-size:16px;line-height:1.5}
+</style></head>
+<body>
+<div class="top"><div>Notes</div><div id="len" style="opacity:.6"></div></div>
+<textarea id="t" placeholder="Start typing…"></textarea>
+<script>
+const key='notes_content';
+const t=document.getElementById('t'); t.value=localStorage.getItem(key)||''; document.getElementById('len').textContent=t.value.length;
+t.addEventListener('input',()=>{ localStorage.setItem(key,t.value); document.getElementById('len').textContent=t.value.length; });
+</script>
+</body></html>

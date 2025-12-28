@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Game</title>
+  <style>
+    :root{
+      --chrome:56px;--gap:10px;--pad:10px;--radius:12px;
+      --bg:#0b0d10;--panel:#12161b;--panel-2:#0f1317;--text:#e7ecf3;
+      --muted:#a7b0bd;--border:#222a33;--shadow:0 1px 0 rgba(0,0,0,0.4),0 6px 20px rgba(0,0,0,0.25);
+      --btn:#1b222b;--btn-hover:#242c36;--accent:#6aa6ff;--ok:#4cc38a;--danger:#ff6a6a;--warning:#ffd166;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    header{position:fixed;top:0;left:0;right:0;height:var(--chrome);display:flex;align-items:center;justify-content:space-between;gap:var(--gap);padding:8px var(--pad);background:var(--panel);border-bottom:1px solid var(--border);box-shadow:var(--shadow);z-index:10}
+    .top-input{height:40px;display:flex;align-items:center;gap:8px;width:25vw;min-width:220px;max-width:520px}
+    .top-input input{width:100%;height:100%;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px;color:var(--text);background:var(--panel-2);outline:none}
+    .top-input input::placeholder{color:#6a7584}
+    .label{font-size:12px;color:var(--muted);white-space:nowrap}
+    main{position:fixed;top:var(--chrome);bottom:calc(var(--chrome) - 6px);left:0;right:0;padding:var(--pad);overflow:auto}
+    #messages{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+    .msg{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow)}
+    .body{font-size:14px;white-space:pre-wrap}
+    .meta{font-size:12px;color:var(--muted);margin-top:6px}
+    .meta a{color:var(--accent);text-decoration:none}
+    footer{position:fixed;left:0;right:0;bottom:0;height:var(--chrome);padding:8px var(--pad);background:var(--panel);border-top:1px solid var(--border);display:flex;align-items:stretch;gap:var(--gap);box-shadow:var(--shadow)}
+    #input{flex:1;min-height:10px;max-height:35vh;resize:none;padding:10px 52px 10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel-2);color:var(--text);outline:none}
+    #input::placeholder{color:#6a7584}
+    #send{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:1px solid var(--border);border-radius:999px;width:36px;height:36px;display:grid;place-items:center;background:var(--btn);color:var(--text);cursor:pointer;font-size:18px}
+    #send:hover{background:var(--btn-hover)}
+    .status{position:fixed;right:12px;bottom:calc(var(--chrome) + 12px);padding:8px 10px;background:var(--panel);border:1px solid var(--border);color:var(--muted);border-radius:8px;font-size:12px;box-shadow:var(--shadow);max-width:66vw;display:none;z-index:5}
+    .status.ok{color:var(--ok);display:block}
+    .status.err{color:var(--danger);display:block}
+    .status.warn{color:var(--warning);display:block}
+    @media (max-width:720px){header{gap:6px}.top-input{min-width:160px}.label{display:none}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="top-input">
+      <span class="label">Display name</span>
+      <input id="displayName" type="text" placeholder="user-123" aria-label="Display name">
+    </div>
+    <div class="top-input" style="margin-left:auto;">
+      <span class="label">Folder / chat</span>
+      <input id="folder" type="text" placeholder="public" aria-label="Folder">
+    </div>
+  </header>
+
+  <main>
+    <div class="label">Showing messages in: <strong id="folderCrumb">public</strong></div>
+    <div id="messages" aria-live="polite"></div>
+  </main>
+
+  <footer>
+    <div style="flex:1; position:relative;">
+      <textarea id="input" placeholder="Type a message…" rows="1"></textarea>
+      <button id="send" title="Send (↑)">↑</button>
+    </div>
+  </footer>
+
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const API = 'https://c.mekabrine.space/message-helper.php';
+
+    // Caesar +2 encode / -2 decode
+    const enc2 = s => s.replace(/[A-Za-z]/g, ch => {
+      const base = ch <= 'Z' ? 65 : 97;
+      return String.fromCharCode(base + ((ch.charCodeAt(0) - base + 2) % 26));
+    });
+    const dec2 = s => s.replace(/[A-Za-z]/g, ch => {
+      const base = ch <= 'Z' ? 65 : 97;
+      return String.fromCharCode(base + ((ch.charCodeAt(0) - base - 2 + 26) % 26));
+    });
+
+    // Filename: {M}{D}{YYYY}{HH}{mm}.txt   (M/D no leading zeros; 24h HHmm)
+    function makeFilename(dt=new Date()){
+      const M=(dt.getMonth()+1).toString();
+      const D=dt.getDate().toString();
+      const YYYY=dt.getFullYear().toString();
+      const HH=String(dt.getHours()).padStart(2,'0');
+      const mm=String(dt.getMinutes()).padStart(2,'0');
+      return `${M}${D}${YYYY}${HH}${mm}.txt`;
+    }
+
+    function defaultDisplayName(){ return `user-${Math.floor(Math.random()*900+100)}`; }
+
+    // Local cache by folder
+    function loadFolder(folder){
+      try{return JSON.parse(localStorage.getItem(`folder:${folder}`)||"[]");}catch{return[];}
+    }
+    function saveFolder(folder,list){
+      localStorage.setItem(`folder:${folder}`,JSON.stringify(list));
+    }
+
+    // Render a folder
+    function renderFolder(folder){
+      $('#folderCrumb').textContent = folder;
+      const list = loadFolder(folder);
+      const c = $('#messages'); c.innerHTML='';
+      for(const item of list){
+        const card = document.createElement('div'); card.className='msg';
+        const body = document.createElement('div'); body.className='body';
+        body.textContent = dec2(item.ciphertext); // decode for display
+        const meta = document.createElement('div'); meta.className='meta';
+        const url = item.url || `https://c.mekabrine.space/c/${encodeURIComponent(folder)}/${item.filename}`;
+        meta.innerHTML = `${new Date(item.createdAt).toLocaleString()} • ${item.sender} • <a target="_blank" rel="noopener" href="${url}">${url}</a>`;
+        card.append(body, meta); c.appendChild(card);
+      }
+      c.scrollTop = c.scrollHeight;
+    }
+
+    // Status toast
+    function toast(msg, kind='ok', timeout=2200){
+      const el = $('#status'); el.className = `status ${kind}`; el.textContent = msg;
+      if(timeout){ setTimeout(()=>{ el.className='status'; el.textContent=''; }, timeout); }
+    }
+
+    // Autosize textarea: start at 10px
+    const inputEl = $('#input');
+    function autosize(){ inputEl.style.height='10px'; inputEl.style.height=Math.min(inputEl.scrollHeight, window.innerHeight*0.35)+'px'; }
+    inputEl.addEventListener('input', autosize);
+
+    // --- Minute-old cleanup ---
+    const ONE_MIN = 60*1000;
+
+    async function serverDelete(folder, filename){
+      const form = new FormData();
+      form.append('action','delete');
+      form.append('folder',folder);
+      form.append('filename',filename);
+      const res = await fetch(API, { method:'POST', body: form });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    // Check all folders (keys starting with folder:) and remove messages older than a minute.
+    // Frontend checks age using stored createdAt, then asks server to double-check via mtime
+    async function cleanupOldMessages(){
+      try{
+        const keys = Object.keys(localStorage).filter(k => k.startsWith('folder:'));
+        const now = Date.now();
+
+        for(const key of keys){
+          const folder = key.slice('folder:'.length);
+          let list = loadFolder(folder);
+          let changed = false;
+
+          // Work on a copy to avoid mutation issues while iterating
+          for(const item of [...list]){
+            const created = typeof item.createdAt === 'number' ? item.createdAt : Date.parse(item.when) || now;
+            if (now - created >= ONE_MIN) {
+              // Ask server to double-check and delete if eligible
+              try {
+                const resp = await serverDelete(folder, item.filename);
+                if (resp && resp.success && resp.deleted) {
+                  // Remove from local cache
+                  list = list.filter(x => x.filename !== item.filename);
+                  changed = true;
+                }
+              } catch (e) {
+                // If server not reachable, skip for now
+                console.warn('Delete check failed:', e);
+              }
+            }
+          }
+          if(changed){
+            saveFolder(folder, list);
+            // If we're viewing this folder, re-render
+            const current = ($('#folder').value.trim() || 'public');
+            if (current === folder) renderFolder(folder);
+          }
+        }
+      } catch(e){
+        console.warn('Cleanup error:', e);
+      }
+    }
+
+    // Kick off cleanup every 20s, and once on load
+    setInterval(cleanupOldMessages, 20000);
+
+    // --- App bootstrap & sending ---
+    window.addEventListener('DOMContentLoaded',()=>{
+      const nameInput = $('#displayName');
+      const folderInput = $('#folder');
+      nameInput.value = defaultDisplayName();
+      folderInput.value = 'public';
+      renderFolder('public');
+      autosize();
+
+      folderInput.addEventListener('input',()=> renderFolder(folderInput.value.trim() || 'public'));
+      $('#send').addEventListener('click', handleSend);
+      inputEl.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter'){ e.preventDefault(); handleSend(); } });
+
+      // Initial cleanup run
+      cleanupOldMessages();
+    });
+
+    async function handleSend(){
+      const raw = $('#input').value.trim();
+      if(!raw) return;
+
+      const sender = $('#displayName').value.trim() || defaultDisplayName();
+      const folder = $('#folder').value.trim() || 'public';
+      const now = new Date();
+      const filename = makeFilename(now);
+      const ciphertext = enc2(raw);
+      const createdAt = Date.now();
+
+      // Optimistic UI/local cache
+      const entry = { filename, sender, ciphertext, createdAt, url: null };
+      const list = loadFolder(folder); list.push(entry); saveFolder(folder, list); renderFolder(folder);
+
+      // Clear input
+      $('#input').value=''; autosize();
+
+      // Save to server
+      try{
+        const form = new FormData();
+        form.append('action','save');
+        form.append('folder', folder);
+        form.append('filename', filename);
+        form.append('message', ciphertext);
+
+        const res = await fetch(API, { method:'POST', body: form });
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if(data && data.success && data.file){
+          entry.url = data.file;
+          const updated = loadFolder(folder);
+          const idx = updated.findIndex(x => x.filename === filename);
+          if (idx !== -1) { updated[idx] = entry; saveFolder(folder, updated); renderFolder(folder); }
+          toast('Message saved ✓', 'ok');
+        } else {
+          toast('Saved locally (no URL from server)', 'warn');
+        }
+      } catch (e) {
+        console.error('Upload failed:', e);
+        toast('Upload failed — kept locally', 'err', 3500);
+      }
+    }
+  </script>
+</body>
+</html>

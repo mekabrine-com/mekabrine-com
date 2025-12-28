@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ASCII AI Adventure</title>
+<style>
+  body {
+    background-color: #0e0e0e;
+    color: #00ff88;
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  #ascii-box {
+    width: 800px;
+    height: 400px;
+    border: 2px solid #00ff88;
+    padding: 10px;
+    white-space: pre;
+    overflow: auto;
+    background-color: #111;
+    margin-bottom: 20px;
+  }
+  #choices {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+  }
+  button {
+    background-color: #00ff88;
+    color: #111;
+    border: none;
+    padding: 10px 20px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 8px;
+  }
+  button:hover {
+    background-color: #00cc66;
+  }
+  #api-container {
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  input {
+    padding: 8px;
+    border-radius: 5px;
+    border: none;
+    width: 300px;
+    font-family: monospace;
+  }
+  /* Loading animation */
+  #loading {
+    font-size: 24px;
+    letter-spacing: 3px;
+    display: none;
+  }
+  @keyframes blink {
+    0% { opacity: 0.2; }
+    50% { opacity: 1; }
+    100% { opacity: 0.2; }
+  }
+  .dot {
+    animation: blink 1.4s infinite both;
+  }
+  .dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+</style>
+</head>
+<body>
+  <h1>🧠 ASCII AI Adventure</h1>
+  <div id="api-container">
+    <p>Enter your VoidAI API Key:</p>
+    <input type="password" id="api-key" placeholder="sk-..." />
+    <button onclick="saveKey()">Save Key</button>
+  </div>
+
+  <div id="ascii-box">Press any button to begin your adventure...</div>
+  <div id="loading">Loading<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+  <div id="choices"></div>
+
+<script>
+let apiKey = localStorage.getItem("voidai_api_key") || "";
+document.getElementById("api-key").value = apiKey;
+
+let lastScene = "The adventure begins...";
+let lastChoice = "";
+
+async function getNextScene() {
+  if (!apiKey) {
+    apiKey = document.getElementById("api-key").value.trim();
+    if (!apiKey) {
+      alert("Please enter your API key first!");
+      return;
+    }
+    localStorage.setItem("voidai_api_key", apiKey);
+  }
+
+  document.getElementById("loading").style.display = "block";
+  document.getElementById("choices").innerHTML = "";
+
+  const payload = {
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are an ASCII art adventure game engine. 
+Each response follows this exact format (no markdown, no extra text):
+
+short desc
+ascii art line 1
+ascii art line 2
+ascii art line 3
+ascii art line 4
+ascii art line 5
+ascii art line 6
+ascii art line 7
+ascii art line 8
+player choice 1
+player choice 2
+player choice 3
+
+Rules:
+- Player choices must be in plain text (no quotes, no punctuation)
+- Each choice must be a maximum of 5 words
+- Make ASCII fit roughly within a 200x100px box
+- Keep scene descriptions short and cinematic`
+      },
+      {
+        role: "user",
+        content: `Last scene and choice:\n${lastScene}\n${lastChoice}\n\nCreate the next ASCII art scene and 3 short plain-text choices (max 5 words each).`
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch("https://api.voidai.app/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText);
+    }
+
+    const data = await res.json();
+    const text = data.choices[0].message.content;
+    displayScene(text);
+  } catch (err) {
+    alert("Error: " + err.message);
+  } finally {
+    document.getElementById("loading").style.display = "none";
+  }
+}
+
+function displayScene(text) {
+  const lines = text.trim().split("\n").filter(l => l.trim() !== "");
+  const desc = lines[0];
+  const art = lines.slice(1, 9).join("\n");
+  const choices = lines.slice(9, 12);
+
+  document.getElementById("ascii-box").textContent = desc + "\n\n" + art;
+
+  const btnContainer = document.getElementById("choices");
+  btnContainer.innerHTML = "";
+
+  choices.forEach(choice => {
+    const btn = document.createElement("button");
+    btn.textContent = choice.trim();
+    btn.onclick = () => {
+      lastChoice = choice.trim();
+      lastScene = text;
+      getNextScene();
+    };
+    btnContainer.appendChild(btn);
+  });
+}
+
+function saveKey() {
+  const key = document.getElementById("api-key").value.trim();
+  if (key) {
+    localStorage.setItem("voidai_api_key", key);
+    apiKey = key;
+    alert("API key saved!");
+  } else {
+    alert("Please enter a valid key.");
+  }
+}
+
+// Start game automatically
+getNextScene();
+</script>
+</body>
+</html>

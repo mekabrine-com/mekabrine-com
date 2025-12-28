@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lightweight Spotify Web Player</title>
+  <meta name="description" content="Paste any Spotify link and play it in your browser via an embed. No install." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,0.08); }
+  </style>
+</head>
+<body id="appBody" class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100">
+  <main class="mx-auto max-w-3xl px-4 py-10">
+    <header class="mb-6 text-center">
+      <h1 class="text-3xl font-bold tracking-tight">Lightweight Spotify Web Player</h1>
+      <p class="mt-2 text-slate-300">Paste a Spotify song, album, playlist, artist, show, or episode link. No install.</p>
+    </header>
+
+    <!-- Dismissible info box -->
+    <div id="infoBox" class="mb-6 cursor-pointer rounded-2xl bg-emerald-500/10 p-4 text-sm text-emerald-200 ring-1 ring-emerald-400/30">
+      If you're logged out in your browser, Spotify will only play 30 seconds of each song. To play full songs, log in at
+      <a href="https://spotify.com" target="_blank" rel="noreferrer" class="underline decoration-emerald-300 underline-offset-2">spotify.com</a>.
+      <span class="ml-2 opacity-70">Click to hide</span>
+    </div>
+
+    <section class="glass rounded-2xl p-5 shadow-xl ring-1 ring-white/10">
+      <!-- Theme selector -->
+      <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <label for="themeSelect" class="text-sm text-slate-300">Theme</label>
+        <select id="themeSelect" class="w-full max-w-xs rounded-xl bg-slate-800/70 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400"></select>
+      </div>
+
+      <form id="linkForm" class="space-y-4">
+        <div>
+          <label for="spotifyUrl" class="block text-sm font-medium text-slate-300">Spotify URL</label>
+          <input id="spotifyUrl" name="spotifyUrl" type="text" placeholder="e.g. https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT or spotify:track:4cOdK2..." class="mt-2 w-full rounded-xl bg-slate-800/70 px-4 py-3 ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400" required />
+        </div>
+        <div class="flex items-center gap-3">
+          <button type="submit" class="rounded-xl bg-emerald-500/90 px-4 py-2 font-semibold text-slate-900 hover:bg-emerald-400 active:translate-y-[1px]">Embed & Play</button>
+          <button id="demoBtn" type="button" class="rounded-xl bg-slate-700/70 px-3 py-2 text-sm text-slate-100 ring-1 ring-white/10 hover:bg-slate-700">Today's Favorites</button>
+        </div>
+        <p id="status" class="text-sm text-slate-300"></p>
+      </form>
+
+      <div id="playerWrap" class="mt-5 hidden">
+        <iframe id="player" class="w-full rounded-xl" style="height: 420px" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+      </div>
+    </section>
+
+    <section class="mt-8">
+      <h2 class="mb-3 text-lg font-semibold text-slate-200">History</h2>
+      <div id="history" class="grid gap-3"></div>
+    </section>
+
+    <footer class="mt-10 text-center text-xs text-slate-500">
+      <p>Not affiliated with Spotify. Respect their Terms & Developer Policy.</p>
+    </footer>
+  </main>
+
+  <script>
+    // ---- Theme handling ----
+    const THEMES = [
+      // Dark themes
+      { id: 'midnight-aurora', name: 'Midnight Aurora', bg: 'from-slate-950 via-slate-900 to-emerald-900', text: 'text-slate-100' },
+      { id: 'cosmic-purple', name: 'Cosmic Purple', bg: 'from-violet-950 via-fuchsia-900 to-slate-900', text: 'text-slate-100' },
+      { id: 'deep-ocean', name: 'Deep Ocean', bg: 'from-slate-950 via-blue-950 to-indigo-900', text: 'text-slate-100' },
+      { id: 'charcoal-ember', name: 'Charcoal Ember', bg: 'from-neutral-950 via-stone-900 to-orange-900', text: 'text-slate-100' },
+      { id: 'neon-night', name: 'Neon Night', bg: 'from-slate-950 via-zinc-900 to-emerald-800', text: 'text-slate-100' },
+      // Light themes
+      { id: 'morning-mist', name: 'Morning Mist', bg: 'from-slate-100 via-sky-100 to-white', text: 'text-slate-900' },
+      { id: 'pastel-peach', name: 'Pastel Peach', bg: 'from-rose-50 via-amber-50 to-white', text: 'text-slate-900' },
+      { id: 'seafoam-breeze', name: 'Seafoam Breeze', bg: 'from-emerald-50 via-teal-100 to-white', text: 'text-slate-900' },
+      { id: 'paper-white', name: 'Paper White', bg: 'from-white via-slate-50 to-slate-100', text: 'text-slate-900' },
+      { id: 'sunlit-sand', name: 'Sunlit Sand', bg: 'from-amber-100 via-yellow-50 to-white', text: 'text-slate-900' },
+    ];
+
+    const bodyEl = document.getElementById('appBody');
+    const themeSelect = document.getElementById('themeSelect');
+
+    function applyTheme(themeId) {
+      const t = THEMES.find(x => x.id === themeId) || THEMES[0];
+      // Remove previous gradient classes
+      bodyEl.className = 'min-h-screen bg-gradient-to-br ' + t.bg + ' ' + t.text;
+      localStorage.setItem('sp_theme_v1', t.id);
+    }
+
+    function setupThemes() {
+      THEMES.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.name + (['morning-mist','pastel-peach','seafoam-breeze','paper-white','sunlit-sand'].includes(t.id) ? ' (Light)' : ' (Dark)');
+        themeSelect.appendChild(opt);
+      });
+      const saved = localStorage.getItem('sp_theme_v1') || THEMES[0].id;
+      themeSelect.value = saved;
+      applyTheme(saved);
+      themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
+    }
+
+    // Hidden utility to help Tailwind CDN register classes
+    (function ensureTailwindKnowsClasses(){
+      const hidden = document.createElement('div');
+      hidden.className = [
+        'hidden',
+        // all gradient combos used by themes
+        'from-slate-950','via-slate-900','to-emerald-900','from-violet-950','via-fuchsia-900','to-slate-900',
+        'from-slate-950','via-blue-950','to-indigo-900','from-neutral-950','via-stone-900','to-orange-900',
+        'from-slate-950','via-zinc-900','to-emerald-800','from-slate-100','via-sky-100','to-white',
+        'from-rose-50','via-amber-50','from-emerald-50','via-teal-100','from-white','via-slate-50','to-slate-100',
+        'from-amber-100','via-yellow-50'
+      ].join(' ');
+      document.body.appendChild(hidden);
+    })();
+
+    // ---- Dismissible info box ----
+    document.getElementById('infoBox').addEventListener('click', (e) => {
+      e.currentTarget.classList.add('hidden');
+      localStorage.setItem('sp_info_hidden_v1', '1');
+    });
+    (function restoreInfo(){
+      if (localStorage.getItem('sp_info_hidden_v1') === '1') {
+        document.getElementById('infoBox').classList.add('hidden');
+      }
+    })();
+
+    // --- Spotify parsing & embed ---
+    function parseSpotify(input) {
+      if (!input) return null;
+      input = input.trim();
+      const uriMatch = input.match(/^spotify:(track|album|playlist|artist|show|episode):([a-zA-Z0-9]{22})/);
+      if (uriMatch) return { type: uriMatch[1], id: uriMatch[2] };
+      try {
+        const url = new URL(input);
+        if (!/open\.spotify\.com$/.test(url.hostname)) return null;
+        const parts = url.pathname.split('/').filter(Boolean);
+        let idx = 0; if (parts[0] === 'embed') idx = 1;
+        const type = parts[idx];
+        const id = parts[idx + 1]?.split('?')[0];
+        if (type && id && /^(track|album|playlist|artist|show|episode)$/.test(type) && /^[a-zA-Z0-9]{22}$/.test(id)) {
+          return { type, id };
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    function buildEmbedSrc({ type, id }) {
+      // No autoplay param; respects user intent
+      return `https://open.spotify.com/embed/${type}/${id}`;
+    }
+
+    function setStatus(msg, ok = true) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = `text-sm ${ok ? 'text-emerald-300' : 'text-rose-300'}`;
+    }
+
+    function addHistory(raw) {
+      try {
+        const list = JSON.parse(localStorage.getItem('sp_history_v1') || '[]');
+        if (!list.includes(raw)) {
+          list.unshift(raw);
+          localStorage.setItem('sp_history_v1', JSON.stringify(list.slice(0, 12)));
+        }
+      } catch {}
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const wrap = document.getElementById('history');
+      wrap.innerHTML = '';
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem('sp_history_v1') || '[]'); } catch {}
+      if (!list.length) {
+        wrap.innerHTML = '<p class="text-slate-400 text-sm">No links yet.</p>';
+        return;
+      }
+      list.forEach((raw) => {
+        const parsed = parseSpotify(raw);
+        const btn = document.createElement('button');
+        btn.className = 'w-full rounded-xl bg-slate-800/60 px-4 py-3 text-left text-sm hover:bg-slate-800 ring-1 ring-white/10';
+        btn.textContent = raw;
+        btn.title = parsed ? `${parsed.type} • ${parsed.id}` : 'Unrecognized (click to try anyway)';
+        btn.addEventListener('click', () => {
+          document.getElementById('spotifyUrl').value = raw;
+          document.getElementById('linkForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        });
+        wrap.appendChild(btn);
+      });
+    }
+
+    document.getElementById('linkForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const raw = document.getElementById('spotifyUrl').value.trim();
+      const parsed = parseSpotify(raw);
+      if (!parsed) {
+        setStatus('Could not recognize that as a Spotify link/URI. Try a link like https://open.spotify.com/track/…', false);
+        return;
+      }
+      const src = buildEmbedSrc(parsed);
+      const frame = document.getElementById('player');
+      frame.src = src;
+      document.getElementById('playerWrap').classList.remove('hidden');
+      setStatus(`Loaded ${parsed.type.toUpperCase()} • ${parsed.id.slice(0,6)}…`);
+      addHistory(raw);
+    });
+
+    document.getElementById('demoBtn').addEventListener('click', () => {
+      const demos = [
+        'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT',
+        'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+        'https://open.spotify.com/album/382ObEPsp2rxGrnsizN5TX'
+      ];
+      const pick = demos[Math.floor(Math.random() * demos.length)];
+      document.getElementById('spotifyUrl').value = pick;
+      document.getElementById('linkForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    });
+
+    // Init
+    renderHistory();
+    setupThemes();
+  </script>
+</body>
+</html>

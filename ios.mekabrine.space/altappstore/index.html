@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alt App Store</title>
+
+  <!-- iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AltAppStore">
+  <link rel="apple-touch-icon" href="icon.png">
+
+  <!-- Link to manifest (required for proper PWA install) -->
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1f71, #5e00b8);
+      color: white;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 0.5em;
+    }
+
+    p {
+      max-width: 320px;
+      line-height: 1.5;
+      font-size: 1rem;
+      opacity: 0.85;
+      margin-bottom: 2em;
+    }
+
+    button {
+      background: #ffffff;
+      color: #1a1f71;
+      border: none;
+      border-radius: 14px;
+      padding: 16px 40px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(255, 255, 255, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button:active {
+      transform: scale(0.97);
+      box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+    }
+
+    .instructions {
+      margin-top: 3em;
+      font-size: 0.9rem;
+      opacity: 0.9;
+      max-width: 340px;
+    }
+
+    .instructions ol {
+      text-align: left;
+      margin: 0 auto;
+      padding: 0 20px;
+      line-height: 1.6;
+    }
+
+    .footer {
+      position: absolute;
+      bottom: 10px;
+      font-size: 0.8rem;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <h1>Alt App Store</h1>
+  <p>Install and manage your favorite apps seamlessly with AltAppStore for iOS.</p>
+
+  <button id="shareBtn">Download</button>
+
+  <div class="instructions">
+    <p><strong>To install this app on your iPhone:</strong></p>
+    <ol>
+      <li>Tap the <strong>Share</strong> icon <img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/IOS_Share_icon.png" alt="share" style="height:1em;vertical-align:middle;"> in Safari.</li>
+      <li>Scroll down and choose <strong>Add to Home Screen</strong>.</li>
+      <li>Open it from your Home Screen for the full app experience.</li>
+    </ol>
+  </div>
+
+  <div class="footer">© 2025 AltAppStore</div>
+
+  <script>
+    const fixedURL = "https://ios.mekabrine.space/altappstore/webapp.html";
+
+    document.getElementById("shareBtn").addEventListener("click", async () => {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: "Alt App Store",
+            text: "Download Alt App Store for iOS",
+            url: fixedURL
+          });
+        } catch (err) {
+          console.error("Share failed:", err);
+        }
+      } else {
+        alert("Sharing is not supported on this device. Please open in Safari.");
+      }
+    });
+  </script>
+</body>
+</html>

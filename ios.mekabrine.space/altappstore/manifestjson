@@ -1,0 +1,20 @@
+{
+  "name": "Alt App Store",
+  "short_name": "AltAppStore",
+  "start_url": "/webapp.html",
+  "display": "standalone",
+  "background_color": "#1a1f71",
+  "theme_color": "#1a1f71",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

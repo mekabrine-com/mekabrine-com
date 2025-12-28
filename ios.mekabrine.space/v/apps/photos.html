@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Photos</title>
+<style>
+  body{margin:0;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif}
+  .top{position:sticky;top:0;background:#f8f8f8;border-bottom:1px solid #ddd;padding:14px 16px;font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px}
+  .thumb{width:100%;aspect-ratio:1/1;object-fit:cover;background:#111}
+</style></head>
+<body>
+<div class="top">Library</div>
+<div class="grid" id="g"></div>
+<script>
+const g=document.getElementById('g');
+const gallery=JSON.parse(localStorage.getItem('gallery_v1')||'[]');
+gallery.forEach(it=>{
+  if(it.type==='photo'){ const im=new Image(); im.src=it.data; im.className='thumb'; g.appendChild(im); }
+  else { const v=document.createElement('video'); v.src=it.data; v.className='thumb'; v.controls=true; g.appendChild(v); }
+});
+for(let i=0;i<12;i++){ const im=new Image(); im.src=`https://picsum.photos/seed/p${i}/800/800`; im.className='thumb'; im.loading='lazy'; g.appendChild(im); }
+</script>
+</body></html>

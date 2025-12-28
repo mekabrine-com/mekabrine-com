@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iOS MDM Profile Creator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-top: 0;
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .toggle {
+      display: flex;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .btn {
+      width: 100%;
+      margin-top: 20px;
+      padding: 10px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .btn:active {
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>iOS MDM Profile Creator</h2>
+
+    <label>Profile Name</label>
+    <input type="text" id="profileName" placeholder="Enter profile name" />
+
+    <label>Bundle ID</label>
+    <input type="text" id="bundleId" placeholder="com.example.mdm" />
+
+    <label>UUID</label>
+    <div style="display:flex; gap:10px;">
+      <input type="text" id="uuid" placeholder="Generated UUID" />
+      <button class="btn" style="width:150px;" onclick="generateUUID();">Generate UUID</button>
+    </div>
+
+    <div class="toggle">
+      <input type="checkbox" id="allowRemove" />
+      <label for="allowRemove" style="margin-left:10px; font-weight:normal;">Allow Removal</label>
+    </div>
+
+    <div class="toggle">
+      <input type="checkbox" id="isEncrypted" />
+      <label for="isEncrypted" style="margin-left:10px; font-weight:normal;">Encrypt Profile</label>
+    </div>
+
+    <button class="btn" onclick="generateProfile();">Download Profile</button>
+    <button class="btn" style="background:#28a745;" onclick="installProfile();">Install Profile</button>
+  </div>
+
+  <script>
+    function generateUUID() {
+      const uuid = URL.createObjectURL(new Blob()).substring(9);
+      document.getElementById('uuid').value = uuid;
+    }
+
+    function generateProfile() {
+      const name = document.getElementById('profileName').value;
+      const bundle = document.getElementById('bundleId').value;
+      const uuid = document.getElementById('uuid').value;
+      const allowRemove = document.getElementById('allowRemove').checked;
+      const encrypted = document.getElementById('isEncrypted').checked;
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"> 
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array/>
+  <key>PayloadDescription</key>
+  <string>MDM Profile</string>
+  <key>PayloadDisplayName</key>
+  <string>${name}</string>
+  <key>PayloadIdentifier</key>
+  <string>${bundle}</string>
+  <key>PayloadUUID</key>
+  <string>${uuid}</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+  <key>PayloadRemovalDisallowed</key>
+  <${allowRemove ? 'false' : 'true'}/>
+</dict>
+</plist>`;
+
+      const blob = new Blob([xml], { type: 'application/x-apple-aspen-config' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name.replace(/\s+/g,'_')}.mobileconfig`;
+      a.click();
+    }
+
+    function installProfile() {
+      alert('Installation triggered. On iOS, this will prompt profile installation.');
+    }
+  </script>
+</body>
+</html>

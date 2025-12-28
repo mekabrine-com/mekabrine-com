@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Code Tester</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: sans-serif;
+      background: #111;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    #inputSection {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: #111;
+    }
+
+    textarea {
+      width: 90%;
+      height: 60%;
+      font-size: 16px;
+      padding: 10px;
+      border-radius: 8px;
+      resize: none;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background-color: #4CAF50;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="inputSection">
+    <textarea id="codeInput" placeholder="Enter HTML/JS/CSS code here..."></textarea>
+    <button onclick="openCode()">Test</button>
+  </div>
+
+  <script>
+    // Try to auto-fill from clipboard
+    window.addEventListener('load', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          document.getElementById('codeInput').value = text;
+        }
+      } catch (err) {
+        console.warn('Clipboard access denied or unavailable.');
+      }
+    });
+
+    // Open code in about:blank tab
+    function openCode() {
+      const code = document.getElementById('codeInput').value;
+      const newWindow = window.open('about:blank');
+      newWindow.document.open();
+      newWindow.document.write(code);
+      newWindow.document.close();
+    }
+  </script>
+
+</body>
+</html>

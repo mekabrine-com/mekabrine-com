@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoidAI Chat – ai.mekabrine.space</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    .dropzone { border: 2px dashed rgba(100,100,100,.4); transition: .2s; }
+    .dropzone.dragover { border-color: rgba(59,130,246,.8); background: rgba(59,130,246,.08); }
+    .msg { white-space: pre-wrap; }
+    .scroll-gradient { mask-image: linear-gradient(180deg, transparent, #000 24px, #000 calc(100% - 24px), transparent); }
+    .codebox { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <div class="max-w-6xl mx-auto p-4">
+    <header class="flex flex-wrap items-center gap-3 mb-4">
+      <h1 class="text-2xl font-bold">VoidAI Chat</h1>
+      <span class="px-2 py-1 rounded-full text-xs bg-slate-200/70 dark:bg-slate-800/70">ai.mekabrine.space</span>
+      <div class="ml-auto flex items-center gap-2">
+        <button id="settingsBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 text-white dark:bg-white dark:text-slate-900">Settings</button>
+        <button id="clearBtn" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">Clear</button>
+      </div>
+    </header>
+
+    <!-- Controls -->
+    <section class="grid md:grid-cols-3 gap-4 mb-4">
+      <div class="p-4 rounded-2xl bg-white shadow-sm dark:bg-slate-800">
+        <h2 class="font-semibold mb-3">Model & Reasoning</h2>
+        <label class="block text-sm mb-1" for="model">Model</label>
+        <input id="model" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700" placeholder="e.g. gpt-4o-mini" value="gpt-4o-mini" />
+
+        <label class="block text-sm mt-3 mb-1" for="reasoning">Reasoning mode</label>
+        <select id="reasoning" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <option value="none">None</option>
+          <option value="brief">Brief</option>
+          <option value="detailed">Detailed</option>
+        </select>
+
+        <label class="inline-flex items-center gap-2 mt-3">
+          <input id="webPreview" type="checkbox" class="scale-110" />
+          <span>web_search_preview</span>
+        </label>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-white shadow-sm dark:bg-slate-800">
+        <h2 class="font-semibold mb-3">Tools</h2>
+        <div class="grid grid-cols-1 gap-2">
+          <label class="inline-flex items-center gap-2">
+            <input type="checkbox" class="toolChk scale-110" value='{"type":"web_search"}' />
+            <span>Web Search</span>
+          </label>
+          <label class="inline-flex items-center gap-2">
+            <input type="checkbox" class="toolChk scale-110" value='{"type":"code_interpreter"}' />
+            <span>Code Interpreter</span>
+          </label>
+          <label class="inline-flex items-center gap-2">
+            <input type="checkbox" class="toolChk scale-110" value='{"type":"image_understanding"}' />
+            <span>Image Understanding</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-white shadow-sm dark:bg-slate-800">
+        <h2 class="font-semibold mb-3">Files</h2>
+        <div id="dropzone" class="dropzone rounded-xl p-4 text-center cursor-pointer">
+          <p class="text-sm">Drag & drop PDFs or images here (or click to choose)</p>
+          <input id="fileInput" type="file" accept="application/pdf,image/*" multiple hidden />
+        </div>
+        <ul id="fileList" class="mt-3 space-y-2 text-sm max-h-40 overflow-auto pr-2 scroll-gradient"></ul>
+      </div>
+    </section>
+
+    <!-- Chat -->
+    <section class="grid md:grid-cols-3 gap-4">
+      <div class="md:col-span-2 p-4 rounded-2xl bg-white shadow-sm dark:bg-slate-800 flex flex-col min-h-[60vh]">
+        <div id="chat" class="flex-1 overflow-auto space-y-4 pr-2">
+          <!-- messages inserted here -->
+        </div>
+        <form id="composer" class="mt-4 flex items-end gap-2">
+          <textarea id="input" class="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700" rows="2" placeholder="Ask something… (Shift+Enter for newline)"></textarea>
+          <button id="sendBtn" class="px-4 py-2 rounded-xl bg-blue-600 text-white disabled:opacity-50">Send</button>
+        </form>
+      </div>
+      <div class="md:col-span-1 p-4 rounded-2xl bg-white shadow-sm dark:bg-slate-800">
+        <h2 class="font-semibold mb-3">Request Preview</h2>
+        <pre id="preview" class="text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 overflow-auto max-h-[60vh]"></pre>
+      </div>
+    </section>
+  </div>
+
+  <!-- Settings Modal -->
+  <dialog id="settingsDlg" class="rounded-2xl p-0 w-[32rem] max-w-[95vw]">
+    <form method="dialog" class="p-4 bg-white dark:bg-slate-800 rounded-2xl">
+      <h3 class="text-lg font-semibold mb-2">Settings</h3>
+      <label class="block text-sm mb-1">VoidAI API Key</label>
+      <input id="apiKey" type="password" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700" placeholder="vk-..." />
+      <p class="text-xs mt-2 opacity-80">Stored locally in your browser (localStorage).</p>
+      <div class="grid grid-cols-2 gap-3 mt-4">
+        <div>
+          <label class="block text-sm mb-1">Upload Mode</label>
+          <select id="uploadMode" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+            <option value="put">PUT to /public/files/&lt;name&gt;</option>
+            <option value="form">POST FormData to /upload</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm mb-1">Upload Base URL</label>
+          <input id="uploadBase" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700" value="https://ai.mekabrine.space/public/files" />
+        </div>
+      </div>
+      <div class="mt-4 flex gap-2 justify-end">
+        <button class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700" value="cancel">Close</button>
+        <button id="saveSettings" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white" value="default">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    // ====== State ======
+    const state = {
+      files: [],       // {file, name, type, size, url, status}
+      messages: [],    // {role, content}
+    };
+
+    const els = {
+      dropzone: document.getElementById('dropzone'),
+      fileInput: document.getElementById('fileInput'),
+      fileList: document.getElementById('fileList'),
+      chat: document.getElementById('chat'),
+      input: document.getElementById('input'),
+      sendBtn: document.getElementById('sendBtn'),
+      composer: document.getElementById('composer'),
+      preview: document.getElementById('preview'),
+      model: document.getElementById('model'),
+      reasoning: document.getElementById('reasoning'),
+      webPreview: document.getElementById('webPreview'),
+      settingsBtn: document.getElementById('settingsBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      settingsDlg: document.getElementById('settingsDlg'),
+      apiKey: document.getElementById('apiKey'),
+      uploadMode: document.getElementById('uploadMode'),
+      uploadBase: document.getElementById('uploadBase'),
+    };
+
+    // ====== Helpers ======
+    const fmtBytes = b => {
+      const u = ['B','KB','MB','GB'];
+      let i = 0; let x = b;
+      while (x >= 1024 && i < u.length-1) { x/=1024; i++; }
+      return x.toFixed(x<10?1:0) + ' ' + u[i];
+    };
+
+    function saveLocal() {
+      localStorage.setItem('voidai_api_key', els.apiKey.value || '');
+      localStorage.setItem('upload_mode', els.uploadMode.value);
+      localStorage.setItem('upload_base', els.uploadBase.value);
+    }
+    function loadLocal() {
+      els.apiKey.value = localStorage.getItem('voidai_api_key') || '';
+      els.uploadMode.value = localStorage.getItem('upload_mode') || 'put';
+      els.uploadBase.value = localStorage.getItem('upload_base') || 'https://ai.mekabrine.space/public/files';
+    }
+
+    function toolSelections() {
+      return Array.from(document.querySelectorAll('.toolChk:checked')).map(c => JSON.parse(c.value));
+    }
+
+    function renderFiles() {
+      els.fileList.innerHTML = '';
+      for (const f of state.files) {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700';
+        li.innerHTML = `
+          <div class="min-w-0">
+            <div class="truncate font-medium">${f.name}</div>
+            <div class="text-xs opacity-70">${fmtBytes(f.size)} • ${f.type || f.file?.type || 'file'} • <span class="status">${f.status||'pending'}</span></div>
+            ${f.url ? `<a class="text-xs underline break-all" href="${f.url}" target="_blank">${f.url}</a>` : ''}
+          </div>
+          <div class="flex items-center gap-2">
+            ${f.status==='uploading' ? '<span class="text-xs">Uploading…</span>' : ''}
+            ${f.status==='error' ? '<span class="text-xs text-red-600">Error</span>' : ''}
+            <button class="px-2 py-1 text-xs rounded bg-slate-200 dark:bg-slate-700" data-act="remove">Remove</button>
+          </div>`;
+        li.querySelector('[data-act="remove"]').onclick = () => {
+          state.files = state.files.filter(x => x !== f);
+          renderFiles();
+          updatePreview();
+        };
+        els.fileList.appendChild(li);
+      }
+    }
+
+    // Renders plain text bubble
+    function addPlainMsg(role, content) {
+      state.messages.push({ role, content });
+      const wrap = document.createElement('div');
+      wrap.className = 'p-3 rounded-xl ' + (role==='user' ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-slate-100 dark:bg-slate-900');
+      wrap.innerHTML = `<div class="text-xs opacity-70 mb-1">${role}</div><div class="msg">${escapeHtml(content)}</div>`;
+      els.chat.appendChild(wrap);
+      els.chat.scrollTop = els.chat.scrollHeight;
+    }
+
+    // Renders assistant content with code blocks split into boxes
+    function addAssistantRich(content) {
+      state.messages.push({ role: 'assistant', content });
+      const wrap = document.createElement('div');
+      wrap.className = 'p-3 rounded-xl bg-slate-100 dark:bg-slate-900';
+      wrap.innerHTML = `<div class="text-xs opacity-70 mb-1">assistant</div>`;
+      const container = document.createElement('div');
+
+      // Split by triple backticks, keep language tag if present
+      const parts = content.split(/```/g);
+      parts.forEach((part, idx) => {
+        if (idx % 2 === 0) {
+          // Text segment
+          if (part.trim()) {
+            const p = document.createElement('div');
+            p.className = 'msg mb-2';
+            p.innerText = part;
+            container.appendChild(p);
+          }
+        } else {
+          // Code segment — might start with language on first line
+          const firstNl = part.indexOf('\n');
+          let lang = '';
+          let code = part;
+          if (firstNl !== -1) {
+            lang = part.slice(0, firstNl).trim();
+            code = part.slice(firstNl + 1);
+          }
+          const pre = document.createElement('pre');
+          pre.className = 'codebox text-sm rounded-xl bg-slate-900 text-slate-100 p-3 overflow-auto mb-2';
+          const codeEl = document.createElement('code');
+          codeEl.textContent = code.replace(/\s+$/, '');
+          pre.prepend(document.createElement('div'));
+          pre.firstChild.className = 'mb-2 text-xs opacity-70';
+          pre.firstChild.textContent = lang ? `code (${lang})` : 'code';
+          pre.appendChild(codeEl);
+          container.appendChild(pre);
+        }
+      });
+
+      wrap.appendChild(container);
+      els.chat.appendChild(wrap);
+      els.chat.scrollTop = els.chat.scrollHeight;
+    }
+
+    function escapeHtml(s){
+      return s.replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+    }
+
+    function updatePreview() {
+      const attachments = state.files.filter(f=>f.url).map(f=>({
+        type: (f.file?.type||'').startsWith('image/') ? 'image' : (f.file?.type==='application/pdf' ? 'pdf' : 'file'),
+        url: f.url,
+        name: f.name,
+      }));
+
+      const messages = [
+        { role: 'system', content: buildSystemPrompt(attachments) },
+        ...state.messages,
+      ];
+
+      // This is the exact shape VoidAI's chat/completions expects (like your Python client)
+      const body = {
+        model: els.model.value.trim() || 'gpt-4o-mini',
+        max_tokens: 10000,
+        messages
+      };
+
+      // Show only what will actually be sent
+      els.preview.textContent = JSON.stringify(body, null, 2);
+      return body;
+    }
+
+    function buildSystemPrompt(attachments){
+      if (!attachments.length) return 'You are a helpful AI assistant.';
+      const imgs = attachments.filter(a=>a.type==='image');
+      const pdfs = attachments.filter(a=>a.type==='pdf');
+      let s = 'You are a helpful AI assistant.\n';
+      if (imgs.length) {
+        s += `You can refer to the following images by URL if your tools permit:\n- ${imgs.map(i=>i.url).join('\n- ')}\n`;
+      }
+      if (pdfs.length) {
+        s += `Relevant PDFs are available at:\n- ${pdfs.map(p=>p.url).join('\n- ')}\n`;
+        s += 'If you have a PDF-reading tool, cite page numbers and quotes precisely.';
+      }
+      return s;
+    }
+
+    // ====== Uploads ======
+    async function uploadOne(file){
+      const entry = { file, name: file.name, size: file.size, type: file.type, status: 'uploading', url: null };
+      state.files.push(entry); renderFiles(); updatePreview();
+
+      const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+      try {
+        if (els.uploadMode.value === 'put') {
+          const destUrl = `${els.uploadBase.value.replace(/\/$/,'')}/${safeName}`;
+          const res = await fetch(destUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': file.type || 'application/octet-stream'
+            },
+            body: file,
+          });
+          if (!res.ok) {
+            const t = await res.text().catch(()=> '');
+            throw new Error(`Upload failed (${res.status}) ${t||''}`);
+          }
+          entry.url = destUrl;
+        } else {
+          // Expect your backend to accept POST /upload with field "file" and return { url }
+          const form = new FormData();
+          form.append('file', file, safeName);
+          const res = await fetch(els.uploadBase.value.replace(/\/$/, '') + '/upload', {
+            method: 'POST',
+            body: form,
+          });
+          if (!res.ok) {
+            const t = await res.text().catch(()=> '');
+            throw new Error(`Upload failed (${res.status}) ${t||''}`);
+          }
+          const data = await res.json();
+          entry.url = data.url;
+        }
+        entry.status = 'uploaded';
+      } catch (e) {
+        console.error(e);
+        entry.status = 'error';
+      }
+      renderFiles(); updatePreview();
+    }
+
+    function handleFiles(files){
+      const accept = new Set(['application/pdf']);
+      // accept all images/* too
+      for (const f of files) {
+        if (!(f.type.startsWith('image/') || accept.has(f.type))) continue; // skip unsupported
+        uploadOne(f);
+      }
+    }
+
+    // ====== Chat submission ======
+    async function sendMessage(){
+      const text = els.input.value.trim();
+      if (!text) return;
+      els.input.value = '';
+
+      addPlainMsg('user', text);
+      const body = updatePreview();
+
+      const apiKey = els.apiKey.value.trim();
+      if (!apiKey) {
+        addPlainMsg('assistant', '⚠️ Set your VoidAI API key in Settings.');
+        return;
+      }
+
+      els.sendBtn.disabled = true;
+      try {
+        const res = await fetch('https://api.voidai.app/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const t = await res.text().catch(()=> '');
+          throw new Error(`Request failed: ${res.status} ${t||''}`);
+        }
+        const data = await res.json();
+
+        // Same mapping as your Python client
+        const assistantText = data?.choices?.[0]?.message?.content ?? data?.output ?? JSON.stringify(data);
+        addAssistantRich(String(assistantText));
+      } catch (err) {
+        console.error(err);
+        addPlainMsg('assistant', '❌ ' + err.message);
+      } finally {
+        els.sendBtn.disabled = false;
+        updatePreview();
+      }
+    }
+
+    // ====== Events ======
+    els.dropzone.addEventListener('click', ()=> els.fileInput.click());
+    els.fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+    ['dragenter','dragover'].forEach(ev => els.dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); els.dropzone.classList.add('dragover'); }));
+    ;['dragleave','drop'].forEach(ev => els.dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); els.dropzone.classList.remove('dragover'); }));
+    els.dropzone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+
+    els.composer.addEventListener('submit', e=>{ e.preventDefault(); sendMessage(); });
+    els.input.addEventListener('keydown', e=>{ if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }});
+
+    els.model.addEventListener('input', updatePreview);
+    els.reasoning.addEventListener('change', updatePreview);
+    els.webPreview.addEventListener('change', updatePreview);
+    document.querySelectorAll('.toolChk').forEach(c => c.addEventListener('change', updatePreview));
+
+    els.clearBtn.addEventListener('click', ()=>{
+      state.messages = [];
+      document.getElementById('chat').innerHTML = '';
+      updatePreview();
+    });
+
+    els.settingsBtn.addEventListener('click', ()=>{ loadLocal(); els.settingsDlg.showModal(); });
+    document.getElementById('saveSettings').addEventListener('click', ()=>{ saveLocal(); });
+
+    // Init
+    addPlainMsg('assistant', 'Hi! Drop PDFs/images on the right, toggle tools, and ask away.');
+    updatePreview();
+  </script>
+
+  <!-- Security Note (frontend hint; enforce on server!) -->
+  <!--
+    To ensure uploaded files CANNOT be executed:
+    - Serve https://ai.mekabrine.space/public/files from a static, no-exec directory.
+    - Set headers for all responses under /public/files:
+        Content-Type: application/octet-stream (or the detected type)
+        X-Content-Type-Options: nosniff
+        Content-Disposition: attachment; filename="..."
+    - Disallow script MIME types and block .html/.js/.php/.exe uploads server-side.
+    - If using Apache: add .htaccess with `RemoveHandler .php .phtml .php*` and `Options -ExecCGI`.
+    - If using Nginx: `disable_symlinks if_not_owner from=$document_root;` and `default_type application/octet-stream;` for that location.
+  -->
+</body>
+</html>

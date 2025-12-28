@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Mech Rush — Allies + Formations + Menu</title>
+<style>
+body{margin:0;background:#04060c;color:#9fe9ff;font-family:system-ui;overflow:hidden}
+#ui{position:fixed;top:10px;left:10px;z-index:10;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#ui input,#ui button,#ui label{padding:6px 8px;background:#0b1222;color:#aee1ff;border:1px solid #183657;border-radius:6px}
+#ui .group{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#hud{position:fixed;top:10px;right:10px;z-index:10;background:#0b1222aa;border:1px solid #183657;border-radius:8px;padding:8px 10px;min-width:300px}
+canvas{display:block}
+.bar{height:8px;background:#10263a;border-radius:6px;overflow:hidden}
+.bar>span{display:block;height:100%;background:#10e0c0}
+.small{font-size:12px;opacity:.8}
+.label{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.stats{display:grid;grid-template-columns:auto auto;gap:4px 10px;margin-top:8px;font-size:12px;opacity:.95}
+.stats div:nth-child(odd){opacity:.8}
+#menu{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#0b1222;border:1px solid #183657;border-radius:10px;padding:14px 16px;z-index:20;box-shadow:0 10px 24px #0008;min-width:420px}
+#menu h2{margin:0 0 10px 0;font-size:18px}
+#menu .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:6px 0}
+#menu input[type="number"],#menu input[type="text"]{width:110px}
+#menu .controls{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="group">
+    <input id="apiKey" type="password" placeholder="sk-..." />
+    <input id="baseUrl" value="https://api.voidai.app/v1/chat/completions" />
+    <input id="model" value="gpt-4.1-mini" />
+    <input id="smartModel" value="gpt-4.1-nano" />
+    <button id="startBtn">Deploy</button>
+  </div>
+</div>
+<div id="menu">
+  <h2>Game Setup</h2>
+  <div class="row"><span>Max enemies</span><input id="optMaxEnemies" type="number" min="1" max="30" step="1" value="5"></div>
+  <div class="row"><span>Starting allies</span><input id="optAllies" type="number" min="0" max="6" step="1" value="2"></div>
+  <div class="row"><span>Speed multiplier</span><input id="optSpeed" type="number" min="0.2" max="3" step="0.1" value="1.0"></div>
+  <div class="row"><span>Enemy gun fire rate ×</span><input id="optGunRate" type="number" min="0.2" max="5" step="0.1" value="1.0"></div>
+  <div class="row"><label for="optEnemyMissiles">Enemies can use missiles</label><input id="optEnemyMissiles" type="checkbox" checked></div>
+  <div class="row"><label for="optFormations">Enable formations (enemies & allies)</label><input id="optFormations" type="checkbox" checked></div>
+  <div class="controls"><button id="applyBtn">Apply & Launch</button></div>
+</div>
+
+<div id="hud" class="hidden">
+  <div>Wave <span id="wave">0</span> · Score <span id="score">0</span></div>
+  <div class="label"><span>HP</span><span id="hpTxt">100</span></div>
+  <div class="bar"><span id="hpBar" style="width:100%"></span></div>
+  <div class="label"><span>Missile CD</span><span id="mcd">0.0s</span></div>
+  <div class="bar"><span id="missileBar" style="width:100%"></span></div>
+  <div class="label"><span>Flare CD</span><span id="fcd">0.0s</span></div>
+  <div class="bar"><span id="flareBar" style="width:100%"></span></div>
+  <div class="label"><span>Gun Heat</span><span id="heatTxt">0%</span></div>
+  <div class="bar"><span id="heatBar" style="width:0%"></span></div>
+  <div class="stats">
+    <div>Kills</div><div id="stKills">0</div>
+    <div>Shots Fired</div><div id="stShots">0</div>
+    <div>Missiles Fired</div><div id="stMissiles">0</div>
+    <div>Flares Deployed</div><div id="stFlares">0</div>
+    <div>Deaths</div><div id="stDeaths">0</div>
+  </div>
+  <div class="small" style="margin-top:6px">W thrust · A/D turn world · S brake · LMB gun · RMB missile · F flares · Space dash</div>
+</div>
+<canvas id="game"></canvas>
+<script>
+// ===== Canvas =====
+const canvas=document.getElementById('game');const ctx=canvas.getContext('2d');
+let W=innerWidth,H=innerHeight;canvas.width=W;canvas.height=H;window.onresize=()=>{W=innerWidth;H=innerHeight;canvas.width=W;canvas.height=H;};
+window.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ===== Input =====
+const keys={};window.addEventListener('keydown',e=>{keys[e.key]=true; if(e.key==='f'||e.key==='F') dropFlares(player); initAudio();});window.addEventListener('keyup',e=>keys[e.key]=false);
+let mouse={x:W/2,y:H/2,lmb:false,rmb:false};
+canvas.addEventListener('mousedown',e=>{initAudio(); if(e.button===0)mouse.lmb=true; if(e.button===2)mouse.rmb=true;});
+canvas.addEventListener('mouseup',e=>{if(e.button===0)mouse.lmb=false; if(e.button===2)mouse.rmb=false;});
+
+// ===== Settings / Menu =====
+const menuEl=document.getElementById('menu');
+const hudEl=document.getElementById('hud');
+const applyBtn=document.getElementById('applyBtn');
+let SETTINGS={maxEnemies:5, startAllies:2, speedMult:1.0, enemyGunRate:1.0, enemyMissiles:true, formations:true};
+applyBtn.onclick=()=>{SETTINGS={
+  maxEnemies: +(document.getElementById('optMaxEnemies').value||5),
+  startAllies: +(document.getElementById('optAllies').value||2),
+  speedMult: +(document.getElementById('optSpeed').value||1.0),
+  enemyGunRate: +(document.getElementById('optGunRate').value||1.0),
+  enemyMissiles: document.getElementById('optEnemyMissiles').checked,
+  formations: document.getElementById('optFormations').checked,
+}; menuEl.classList.add('hidden'); hudEl.classList.remove('hidden'); startRun(); };
+
+// existing deploy button also opens menu if hidden
+document.getElementById('startBtn').onclick=()=>{menuEl.classList.remove('hidden');};
+
+// ===== World & State =====
+let camX=0,camY=0;
+let player,allies,bullets,enemyBullets,missiles,particles,hazards,enemies,flares,score,wave,playing,stats;
+const G=18, BASE_MAX_SPEED=840, OFFRANGE=1000, SCALE=2/3;
+let headingUp=0; // player facing (0=up)
+let lockTarget=null, lockTime=0;const TWENTY_DEG=Math.PI/9;
+let formationTimer=0, formationType='wedge';
+
+// ===== Audio =====
+let AC=null;function initAudio(){if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)();}
+function env(node,t1,t2,peak=0.8){const now=AC.currentTime;const g=AC.createGain();node.connect(g);g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(peak,now+t1);g.gain.exponentialRampToValueAtTime(0.0001,now+t1+t2);g.connect(AC.destination);return g;}
+function noiseBuf(){const b=AC.createBuffer(1,AC.sampleRate*0.2,AC.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);return b;}
+function playShot(){if(!AC)return;const o=AC.createOscillator();o.type='square';o.frequency.value=260+Math.random()*60;env(o,0.005,0.06);o.start();o.stop(AC.currentTime+0.09);} 
+function playShotVol(vol){if(!AC)return;const o=AC.createOscillator();o.type='square';o.frequency.value=240+Math.random()*40;env(o,0.005,0.06,Math.min(0.8,0.8*vol));o.start();o.stop(AC.currentTime+0.09);}  
+function playWhizz(){if(!AC)return;const o=AC.createOscillator();o.type='sine';o.frequency.setValueAtTime(1600,AC.currentTime);o.frequency.exponentialRampToValueAtTime(300,AC.currentTime+0.12);env(o,0.001,0.12);o.start();o.stop(AC.currentTime+0.13);} 
+function playHit(){if(!AC)return;const n=AC.createBufferSource();n.buffer=noiseBuf();const g=env(n,0.001,0.12);g.gain.value=0.6;n.start();}
+function playMissile(){if(!AC)return;const o=AC.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(220,AC.currentTime);o.frequency.exponentialRampToValueAtTime(660,AC.currentTime+0.2);env(o,0.02,0.25);o.start();o.stop(AC.currentTime+0.27);} 
+function playMissileVol(vol){if(!AC)return;const o=AC.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(180,AC.currentTime);o.frequency.exponentialRampToValueAtTime(520,AC.currentTime+0.2);env(o,0.02,0.25,Math.min(0.9,0.9*vol));o.start();o.stop(AC.currentTime+0.25);}  
+function playExplosion(){if(!AC)return;const n=AC.createBufferSource();n.buffer=noiseBuf();env(n,0.02,0.4,1.0);n.start();}
+function playExplosionVol(vol){if(!AC)return;const n=AC.createBufferSource();n.buffer=noiseBuf();env(n,0.02,0.35,Math.min(1.0,vol));n.start();}
+
+// ===== Helpers =====
+function forward(){return headingUp - Math.PI/2;} // player's facing angle to world
+function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
+function limitSpeed(o,max){const s=Math.hypot(o.vx,o.vy);if(s>max){const k=max/s;o.vx*=k;o.vy*=k;}}
+function turnToward(cur,target,maxD){let d=normalizeAngle(target-cur);d=clamp(d,-maxD,maxD);return cur+d;}
+function normalizeAngle(a){while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;return a;}
+function dist2(a,b){const dx=a.x-b.x,dy=a.y-b.y;return dx*dx+dy*dy;}
+function distVol(x,y){const d=Math.hypot(x-player.x,y-player.y);return Math.max(0.05,Math.min(1,500/(d+1)));}
+
+// ===== Entities =====
+function makeShip(x,y,clr='#6df7e6'){return {x,y,vx:0,vy:0,clr,hp:100,dash:1,gunCD:0,missileCD:0,flareCD:0,heat:0,overheated:false,heading:-Math.PI/2,ai:{orbit:Math.random()*Math.PI*2, boostCD:0}}}
+
+function spawnEnemy(x,y,type='orange'){
+  // red: fast guns, no missiles — white: slow missiles only every 3s — orange: normal
+  let speed=120,hp=60, canGun=true, canMissile=true, gunRate=2.0, missileRate=6.5;
+  if(type==='red'){speed=170; canMissile=false; gunRate=1.2;}
+  else if(type==='white'){speed=90; canGun=false; missileRate=3.0;}
+  if(!SETTINGS.enemyMissiles) canMissile=false;
+  enemies.push({x,y,vx:0,vy:0,type,hp,speed,gunCD:Math.random()*0.6+0.6,missileCD:Math.random()*missileRate,canGun,canMissile,gunRate,missileRate,boostCD:1.5,heading:-Math.PI/2});
+}
+function spawnHazard(x,y,r,duration){hazards.push({x,y,r,t:duration});}
+function spawnParticles(x,y,color,count=10){for(let i=0;i<count;i++){particles.push({x,y,vx:(Math.random()-0.5)*240,vy:(Math.random()-0.5)*240,life:0.4,color});}}
+
+function fireGun(x,y,angle,team,owner){
+  const sp=2240*SETTINGS.speedMult, SPREAD=Math.PI/36; const a=angle+(Math.random()*2-1)*SPREAD;
+  const vx=Math.cos(a)*sp, vy=Math.sin(a)*sp; const arr=(team==='enemy')?enemyBullets:bullets; arr.push({x,y,vx,vy,life:3,team,owner});
+}
+function fireMissile(x,y,angle,team,owner=null){const sp=900*SETTINGS.speedMult;missiles.push({x,y,vx:Math.cos(angle)*sp,vy:Math.sin(angle)*sp,team,life:5,turn:2.0,target:null,owner});}
+
+function dropFlares(ship){ // use ship facing, not movement
+  if(ship.flareCD>0) return; ship.flareCD=3; if(ship===player){stats.flares++; updateHud();}
+  const a = (ship===player)?forward():ship.heading; const back=a+Math.PI, spread=Math.PI/4, count=10; const sp=560*SETTINGS.speedMult;
+  for(let i=0;i<count;i++){const t=(i/(count-1))-0.5;const ang=back+t*spread;const fx=ship.x+Math.cos(ang)*18, fy=ship.y+Math.sin(ang)*18; flares.push({x:fx,y:fy,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,r:24,life:2});}
+}
+
+// ===== Aim (player) =====
+function worldToScreen(x,y){const dx=x-player.x, dy=y-player.y; const a=-forward()-Math.PI/2; const c=Math.cos(a), s=Math.sin(a); return {x:W/2+(dx*c-dy*s)*SCALE, y:H/2+(dx*s+dy*c)*SCALE};}
+function onScreenWX(x,y){const p=worldToScreen(x,y);return p.x>=0&&p.x<=W&&p.y>=0&&p.y<=H;}
+function updateAim(dt){let best=null;let bestDiff=TWENTY_DEG;const face=forward();const fx=Math.cos(face),fy=Math.sin(face);for(const e of enemies){if(!onScreenWX(e.x,e.y)) continue; const dx=e.x-player.x,dy=e.y-player.y; if(dx*fx+dy*fy<=0) continue; const angTo=Math.atan2(dy,dx); const diff=Math.abs(Math.atan2(Math.sin(angTo-face),Math.cos(angTo-face))); if(diff<=TWENTY_DEG && diff<bestDiff){best=e;bestDiff=diff;}} if(best){if(lockTarget===best) lockTime+=dt; else{lockTarget=best;lockTime=0;}}else{lockTarget=null;lockTime=0;}}
+function interceptAngle(shooter,target,projSpeed){const rx=target.x-shooter.x, ry=target.y-shooter.y; const vx=target.vx||0, vy=target.vy||0; const vv=vx*vx+vy*vy, rv=rx*vx+ry*vy, rr=rx*rx+ry*ry; const A=vv-projSpeed*projSpeed, B=2*rv, C=rr; let t=null; if(Math.abs(A)<1e-6){ if(Math.abs(B)>1e-6) t=-C/B; } else { const disc=B*B-4*A*C; if(disc>=0){const s=Math.sqrt(disc); const t1=(-B-s)/(2*A), t2=(-B+s)/(2*A); const cand=[t1,t2].filter(x=>x>0); t=cand.length?Math.min(...cand):null;}} if(!t||!isFinite(t)||t<0) return Math.atan2(ry,rx); const tx=target.x+vx*t, ty=target.y+vy*t; return Math.atan2(ty-shooter.y, tx-shooter.x);} 
+function getAimAngle(){const face=forward(); if(!lockTarget) return face; return interceptAngle(player,lockTarget,2240*SETTINGS.speedMult);} 
+
+// ===== Player Control =====
+function controlPlayer(dt){const turnSpeed=6.875; if(keys['a']||keys['ArrowLeft']) headingUp-=turnSpeed*dt; if(keys['d']||keys['ArrowRight']) headingUp+=turnSpeed*dt; if(keys['w']||keys['ArrowUp']){const t=220*SETTINGS.speedMult; const a=forward(); player.vx+=Math.cos(a)*t*dt; player.vy+=Math.sin(a)*t*dt; spawnParticles(player.x-Math.cos(a)*12,player.y-Math.sin(a)*12,'#66fff2',1);} if(keys['s']||keys['ArrowDown']){const f=Math.max(0,1-4*dt);player.vx*=f;player.vy*=f;} if(keys[' ']) dash(player); if(mouse.lmb) shootPlayer(); if(mouse.rmb) tryFireMissile(player,true);} 
+function shootPlayer(){if(player.gunCD>0||player.overheated) return; player.gunCD=0.1; const ang=getAimAngle(); fireGun(player.x+Math.cos(ang)*18,player.y+Math.sin(ang)*18,ang,'ally',player); stats.shots++; updateHud(); playShot(); player.heat=Math.min(1,player.heat+0.015); if(player.heat>=1) player.overheated=true;}
+function tryFireMissile(ship,isPlayer=false){ if(ship.missileCD>0) return; ship.missileCD=5; const target = nearestEnemyTo(ship); if(!target) return; const ang=interceptAngle(ship,target,900*SETTINGS.speedMult); fireMissile(ship.x,ship.y,ang,'ally',ship); if(isPlayer){stats.missiles++; updateHud(); playMissile();} }
+function dash(ship){if(ship.dash<0.35)return; ship.dash-=0.35; const a=(ship===player)?forward():ship.heading; ship.vx+=Math.cos(a)*260*SETTINGS.speedMult; ship.vy+=Math.sin(a)*260*SETTINGS.speedMult; spawnParticles(ship.x,ship.y, ship===player?'#6df7e6':'#53d8cf',18);} 
+
+// ===== Ally AI & Formations =====
+function nearestEnemyTo(ent){let best=null,bestD=Infinity; for(const e of enemies){const d=dist2(ent,e); if(d<bestD){bestD=d;best=e;}} return best;}
+function formationOffsets(n, radius, baseAngle){ // returns array of offsets [dx,dy]
+  const arr=[]; if(formationType==='wedge'){ const angs=[0,-Math.PI/6,Math.PI/6,-Math.PI/3,Math.PI/3]; for(let i=0;i<n;i++){const a=baseAngle+(angs[i%angs.length]||0); arr.push([Math.cos(a)*radius, Math.sin(a)*radius]);} }
+  else if(formationType==='reverseWedge'){ const angs=[Math.PI, Math.PI- Math.PI/6, Math.PI+ Math.PI/6, Math.PI- Math.PI/3, Math.PI+ Math.PI/3]; for(let i=0;i<n;i++){const a=baseAngle+(angs[i%angs.length]||0); arr.push([Math.cos(a)*radius, Math.sin(a)*radius]);} }
+  else { // split: left/right
+    for(let i=0;i<n;i++){const side = (i%2===0)?-1:1; const a=baseAngle+side*Math.PI/2; const r=radius*(1+0.2*i); arr.push([Math.cos(a)*r, Math.sin(a)*r]);}
+  }
+  return arr;
+}
+function allyThink(a,dt,idx){ // cooldowns
+  a.gunCD=Math.max(0,a.gunCD-dt); a.missileCD=Math.max(0,a.missileCD-dt); a.flareCD=Math.max(0,a.flareCD-dt); a.dash=Math.min(1,a.dash+0.2*dt); a.heat=Math.max(0,a.heat-0.04*dt); if(a.overheated && a.heat<=0.75) a.overheated=false;
+  // pick desired position (formation or orbit)
+  let tx,ty; const baseA=forward(); const offs=formationOffsets(allies.length, 160, baseA); if(SETTINGS.formations && offs[idx]){tx=player.x+offs[idx][0]; ty=player.y+offs[idx][1];} else { a.ai.orbit+=0.4*dt; tx=player.x+Math.cos(a.ai.orbit)*160; ty=player.y+Math.sin(a.ai.orbit)*160; }
+  // face desired direction and thrust along heading
+  const toA=Math.atan2(ty-a.y,tx-a.x); a.heading=turnToward(a.heading,toA,4.5*dt); const thrust=180*SETTINGS.speedMult; a.vx+=Math.cos(a.heading)*thrust*dt; a.vy+=Math.sin(a.heading)*thrust*dt;
+  // engage
+  const t=nearestEnemyTo(a); if(t){ const fireAng=interceptAngle(a,t,2240*SETTINGS.speedMult); if(a.gunCD<=0 && !a.overheated){ fireGun(a.x+Math.cos(fireAng)*14,a.y+Math.sin(fireAng)*14,fireAng,'ally',a); a.gunCD=0.12; a.heat=Math.min(1,a.heat+0.01); if(AC) playShotVol(distVol(a.x,a.y)); } if(a.missileCD<=0){ const mang=interceptAngle(a,t,900*SETTINGS.speedMult); fireMissile(a.x,a.y,mang,'ally',a); a.missileCD=5.5; if(AC) playMissileVol(distVol(a.x,a.y)); } }
+  // gravity & move
+  a.vy+=G*dt; limitSpeed(a,BASE_MAX_SPEED*SETTINGS.speedMult); a.x+=a.vx*dt; a.y+=a.vy*dt;
+}
+
+// ===== Enemy AI =====
+function enemyThink(e,dt){ e.gunCD-=dt; e.missileCD-=dt; e.boostCD-=dt; // turn to player
+  const aimA=Math.atan2(player.y-e.y,player.x-e.x); e.heading=turnToward(e.heading,aimA,4.2*dt);
+  // boost along facing every 1.5s
+  if(e.boostCD<=0){ e.boostCD=1.5; e.vx+=Math.cos(e.heading)*220*SETTINGS.speedMult; e.vy+=Math.sin(e.heading)*220*SETTINGS.speedMult; }
+  // formation steering
+  if(SETTINGS.formations){ const idx=enemies.indexOf(e); const offs=formationOffsets(enemies.length, 260, forward()); if(offs[idx]){ const fx=player.x+offs[idx][0], fy=player.y+offs[idx][1]; const toF=Math.atan2(fy-e.y,fx-e.x); e.heading=turnToward(e.heading,toF,2.0*dt); }}
+  // thrust along heading
+  const thrust=e.speed*6.0*SETTINGS.speedMult; e.vx+=Math.cos(e.heading)*thrust*dt; e.vy+=Math.sin(e.heading)*thrust*dt; e.vx*=0.985; e.vy*=0.985; limitSpeed(e,BASE_MAX_SPEED*SETTINGS.speedMult); e.vy+=G*0.6*dt; e.x+=e.vx*dt; e.y+=e.vy*dt;
+  // select closest target among player+allies for missiles
+  const targets=[player,...allies]; let tgt=targets[0], best=dist2(e,tgt); for(const t of targets){const d=dist2(e,t); if(d<best){best=d;tgt=t;}}
+  // guns (respect fire-rate multiplier & non-shoot if ally ahead rule)
+  if(e.canGun && e.gunCD<=0){ let gAng=Math.atan2(player.y-e.y,player.x-e.x); let blocked=false; const limit=Math.PI/18; for(const f of enemies){ if(f===e) continue; const dx=f.x-e.x, dy=f.y-e.y; const d=Math.hypot(dx,dy); if(d>300) continue; const a2=Math.atan2(dy,dx); const diff=Math.abs(Math.atan2(Math.sin(a2-gAng),Math.cos(a2-gAng))); if(diff<=limit){blocked=true;break;} } if(!blocked){ fireGun(e.x+Math.cos(gAng)*12,e.y+Math.sin(gAng)*12,gAng,'enemy',e); if(AC) playShotVol(distVol(e.x,e.y)); } e.gunCD=e.gunRate/Math.max(0.1,SETTINGS.enemyGunRate); }
+  // missiles
+  if(e.canMissile && e.missileCD<=0){ const mAng=Math.atan2(tgt.y-e.y,tgt.x-e.x); fireMissile(e.x,e.y,mAng,'enemy',e); if(AC) playMissileVol(distVol(e.x,e.y)); e.missileCD=e.missileRate; }
+}
+
+// ===== Reset / HUD =====
+function reset(){ player=makeShip(0,0,'#6df7e6'); allies=[]; for(let i=0;i<SETTINGS.startAllies;i++) allies.push(makeShip((i?60:-60),40,'#53d8cf')); bullets=[];enemyBullets=[];missiles=[];particles=[];hazards=[];enemies=[];flares=[];score=0;wave=0;playing=false;lockTarget=null;lockTime=0;stats={kills:0,shots:0,missiles:0,flares:0,deaths:0}; headingUp=0; formationTimer=0; updateHud(); }
+function updateHud(){document.getElementById('score').textContent=score;document.getElementById('wave').textContent=wave;document.getElementById('hpTxt').textContent=Math.max(0,player.hp|0);document.getElementById('hpBar').style.width=Math.max(0,player.hp)/100*100+'%';document.getElementById('mcd').textContent=Math.max(0,player.missileCD).toFixed(1)+'s';document.getElementById('missileBar').style.width=(1-Math.min(1,player.missileCD/5))*100+'%';document.getElementById('fcd').textContent=Math.max(0,player.flareCD).toFixed(1)+'s';document.getElementById('flareBar').style.width=(1-Math.min(1,player.flareCD/3))*100+'%';const heatPct=Math.round(player.heat*100);document.getElementById('heatTxt').textContent=(player.overheated?'OVERHEATED ':'')+heatPct+'%';document.getElementById('heatBar').style.width=Math.min(100,heatPct)+'%';document.getElementById('heatBar').style.background= player.overheated?'#ff6b6b':'#10e0c0';document.getElementById('stKills').textContent=stats.kills;document.getElementById('stShots').textContent=stats.shots;document.getElementById('stMissiles').textContent=stats.missiles;document.getElementById('stFlares').textContent=stats.flares;document.getElementById('stDeaths').textContent=stats.deaths;}
+
+// ===== Physics =====
+let lastWhizz=0;function integrate(dt){ // player
+  player.vy+=G*dt; player.x+=player.vx*dt; player.y+=player.vy*dt; limitSpeed(player,BASE_MAX_SPEED*SETTINGS.speedMult);
+  player.gunCD=Math.max(0,player.gunCD-dt); player.missileCD=Math.max(0,player.missileCD-dt); player.flareCD=Math.max(0,player.flareCD-dt); player.dash=Math.min(1,player.dash+0.2*dt); player.heat=Math.max(0,player.heat-0.04*dt); if(player.overheated && player.heat<=0.75) player.overheated=false; camX=player.x-W/2; camY=player.y-H/2;
+  // allies
+  for(let i=0;i<allies.length;i++) allyThink(allies[i],dt,i);
+  // bullets
+  const step=o=>{o.x+=o.vx*dt;o.y+=o.vy*dt;o.life-=dt;}; bullets.forEach(step); enemyBullets.forEach(step);
+  if(AC && performance.now()-lastWhizz>120){for(const b of enemyBullets){if(Math.hypot(b.x-player.x,b.y-player.y)<30){playWhizz(); lastWhizz=performance.now(); break;}}}
+  // missiles
+  for(const m of missiles){ m.life-=dt; const sp=Math.hypot(m.vx,m.vy)||360; let ang=null; if(m.team==='enemy'){ const ts=[player,...allies]; let tgt=ts[0], best=dist2(m,ts[0]); for(const t of ts){const d=dist2(m,t); if(d<best){best=d;tgt=t;}} ang=Math.atan2(tgt.y-m.y,tgt.x-m.x); } else { if(!m.target || enemies.indexOf(m.target)===-1){m.target=enemies.reduce((a,b)=>!a||dist2(m,b)<dist2(m,a)?b:a,null);} if(m.target){ang=Math.atan2(m.target.y-m.y,m.target.x-m.x);} } if(ang!=null){let cur=Math.atan2(m.vy,m.vx);cur=turnToward(cur,ang,m.turn*dt);m.vx=Math.cos(cur)*sp; m.vy=Math.sin(cur)*sp;} m.x+=m.vx*dt; m.y+=m.vy*dt; }
+  // flares
+  for(const f of flares){f.x+=f.vx*dt; f.y+=f.vy*dt; f.life-=dt;} flares=flares.filter(f=>f.life>0);
+  // enemies
+  for(const e of enemies) enemyThink(e,dt);
+  // formation cycle
+  if(SETTINGS.formations){ formationTimer+=dt; if(formationTimer>6){ formationTimer=0; const r=Math.random(); formationType = r<0.34? 'wedge' : (r<0.67? 'reverseWedge' : 'split'); } }
+}
+
+// ===== Collisions (same logic + allies) =====
+function collide(dt){ // enemy bullets vs player
+  for(let i=enemyBullets.length-1;i>=0;i--){const b=enemyBullets[i]; if(b.owner==='player') continue; if(Math.hypot(b.x-player.x,b.y-player.y)<16){enemyBullets.splice(i,1); player.hp-=10; spawnParticles(player.x,player.y,'#ffa366',12); playHit(); if(player.hp<=0) gameOver();}}
+  // enemy bullets vs allies
+  for(const a of allies){ for(let i=enemyBullets.length-1;i>=0;i--){const b=enemyBullets[i]; if(b.owner===a) continue; if(Math.hypot(b.x-a.x,b.y-a.y)<16){enemyBullets.splice(i,1); a.hp-=10; spawnParticles(a.x,a.y,'#ffa366',10); if(a.hp<=0){ a.hp=100; a.x=player.x+(Math.random()*2-1)*120; a.y=player.y+(Math.random()*2-1)*120; } } } }
+  // missiles vs player/allies
+  for(let i=missiles.length-1;i>=0;i--){const m=missiles[i]; if(m.team==='enemy'){ if(Math.hypot(m.x-player.x,m.y-player.y)<18){missiles.splice(i,1); player.hp-=34; spawnParticles(player.x,player.y,'#fff066',20); playExplosion(); if(player.hp<=0) gameOver(); continue;} for(const a of allies){ if(Math.hypot(m.x-a.x,m.y-a.y)<18){missiles.splice(i,1); a.hp-=34; spawnParticles(a.x,a.y,'#fff066',20); playExplosion(); } } } }
+  // flares vs missiles
+  outer: for(let i=missiles.length-1;i>=0;i--){const m=missiles[i]; for(let j=flares.length-1;j>=0;j--){const f=flares[j]; if(Math.hypot(m.x-f.x,m.y-f.y)<f.r){missiles.splice(i,1); flares.splice(j,1); spawnParticles(m.x,m.y,'#ffa500',20); playExplosionVol(distVol(m.x,m.y)); break outer;}}}
+  // friendly bullets vs enemies
+  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i]; for(let j=bullets.length-1;j>=0;j--){const b=bullets[j]; if(!b) continue; if(Math.hypot(b.x-e.x,b.y-e.y)<16){bullets.splice(j,1); e.hp-=20; spawnParticles(e.x,e.y,'#ff8fa3',10); if(e.hp<=0){ for(const m of missiles){if(m.owner===e){m.owner=null; m.turn=0;}} enemies.splice(i,1); stats.kills++; score+=10; updateHud(); break; } } } }
+  // enemy bullets vs enemies (friendly fire, exclude owner)
+  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i]; for(let j=enemyBullets.length-1;j>=0;j--){const b=enemyBullets[j]; if(!b) continue; if(b.owner===e) continue; if(Math.hypot(b.x-e.x,b.y-e.y)<16){enemyBullets.splice(j,1); e.hp-=20; spawnParticles(e.x,e.y,'#ffa366',10); if(e.hp<=0){ for(const m of missiles){if(m.owner===e){m.owner=null; m.turn=0;}} enemies.splice(i,1); stats.kills++; score+=10; updateHud(); break; } } } }
+  // friendly bullets vs player (never self)
+  for(let j=bullets.length-1;j>=0;j--){const b=bullets[j]; if(!b) continue; if(b.owner===player) continue; if(Math.hypot(b.x-player.x,b.y-player.y)<16){bullets.splice(j,1); player.hp-=10; spawnParticles(player.x,player.y,'#ffa366',10); playHit(); if(player.hp<=0) gameOver();}}
+  // ally missiles vs enemies
+  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i]; for(let j=missiles.length-1;j>=0;j--){const m=missiles[j]; if(m.team!=='enemy' && Math.hypot(m.x-e.x,m.y-e.y)<18){missiles.splice(j,1); for(const mm of missiles){if(mm.owner===e){mm.owner=null; mm.turn=0;}} enemies.splice(i,1); stats.kills++; score+=20; playExplosion(); updateHud(); break; } } }
+}
+
+// ===== Rendering =====
+function drawScene(cb){ctx.save(); ctx.translate(W/2,H/2); ctx.scale(SCALE,SCALE); ctx.rotate(-forward()-Math.PI/2); ctx.translate(-player.x,-player.y); cb(); ctx.restore();}
+function draw(){ ctx.clearRect(0,0,W,H); ctx.fillStyle='#061429'; ctx.fillRect(0,0,W,H);
+  drawScene(()=>{ // grid
+    ctx.strokeStyle='#0d2749'; ctx.lineWidth=1; ctx.globalAlpha=0.5; const grid=40; const startX=Math.floor((player.x-W/SCALE)/grid)*grid; const endX=Math.floor((player.x+W/SCALE)/grid)*grid; const startY=Math.floor((player.y-H/SCALE)/grid)*grid; const endY=Math.floor((player.y+H/SCALE)/grid)*grid; for(let x=startX;x<=endX;x+=grid){ctx.beginPath();ctx.moveTo(x,startY);ctx.lineTo(x,endY);ctx.stroke();} for(let y=startY;y<=endY;y+=grid){ctx.beginPath();ctx.moveTo(startX,y);ctx.lineTo(endX,y);ctx.stroke();} ctx.globalAlpha=1;
+    for(const h of hazards){ctx.fillStyle='rgba(255,80,120,0.1)';ctx.beginPath();ctx.arc(h.x,h.y,h.r,0,Math.PI*2);ctx.fill();}
+    for(const f of flares){ctx.globalAlpha=Math.max(0,Math.min(1,f.life/2));ctx.fillStyle='#ffa500';ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+    for(const arr of [bullets,enemyBullets]){ for(const b of arr){ const tailX=b.x-b.vx*0.1, tailY=b.y-b.vy*0.1; const headX=b.x, headY=b.y; ctx.strokeStyle='#f6ff6a';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(tailX,tailY);ctx.lineTo(headX,headY);ctx.stroke(); ctx.fillStyle=(arr===bullets?'#ffffff':'#ff9a6a');ctx.beginPath();ctx.arc(headX,headY,3,0,Math.PI*2);ctx.fill(); } }
+    for(const m of missiles){ ctx.save(); ctx.translate(m.x,m.y); const a=Math.atan2(m.vy,m.vx); ctx.rotate(a); ctx.fillStyle=(m.team==='enemy')?'#ffc7d0':'#baffc9'; ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(-10,-5); ctx.lineTo(-10,5); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    for(const e of enemies){ ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(e.heading); ctx.fillStyle = (e.type==='red')?'#ff4d4d':(e.type==='white')?'#f4f4f4':'#ff8a3a'; ctx.beginPath(); ctx.moveTo(16,0); ctx.lineTo(-12,-10); ctx.lineTo(-12,10); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    for(const a of allies){ ctx.save(); ctx.translate(a.x,a.y); ctx.rotate(a.heading); ctx.fillStyle=a.clr; ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(-14,-11); ctx.lineTo(-14,11); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life*2); ctx.fillStyle=p.color; ctx.fillRect(p.x-2,p.y-2,4,4); ctx.globalAlpha=1; }
+    if(lockTarget){ ctx.save(); ctx.strokeStyle='#ff3b3b'; ctx.lineWidth=2; const r=10; ctx.beginPath(); ctx.moveTo(lockTarget.x-r,lockTarget.y); ctx.lineTo(lockTarget.x+r,lockTarget.y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(lockTarget.x,lockTarget.y-r); ctx.lineTo(lockTarget.x,lockTarget.y+r); ctx.stroke(); ctx.restore(); }
+  });
+  // offscreen indicators
+  let offL=[],offR=[],offT=[],offB=[]; for(const e of enemies){ const p=worldToScreen(e.x,e.y); const on=(p.x>=0&&p.x<=W&&p.y>=0&&p.y<=H); if(!on){ if(p.x<0&&p.x>-OFFRANGE) offL.push(p.y); else if(p.x>W&&p.x<W+OFFRANGE) offR.push(p.y); else if(p.y<0&&p.y>-OFFRANGE) offT.push(p.x); else if(p.y>H&&p.y<H+OFFRANGE) offB.push(p.x);} } drawMerged(offL,'left'); drawMerged(offR,'right'); drawMerged(offT,'top'); drawMerged(offB,'bottom');
+  // player sprite fixed
+  ctx.save(); ctx.translate(W/2,H/2); ctx.rotate(-Math.PI/2); ctx.fillStyle='#6df7e6'; ctx.beginPath(); ctx.moveTo(18,0); ctx.lineTo(-14,-11); ctx.lineTo(-14,11); ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function drawMerged(list,side){ if(list.length===0) return; const avg=(list.reduce((a,b)=>a+b,0)/list.length); ctx.save(); ctx.strokeStyle='#ff4d4d'; ctx.fillStyle='#ff4d4d'; ctx.lineWidth=4; const m=4; ctx.font='14px system-ui'; ctx.textBaseline='middle'; ctx.textAlign='center'; if(side==='left'){const y=clamp(avg,10,H-10); ctx.beginPath(); ctx.moveTo(m,y-20); ctx.lineTo(m,y+20); ctx.stroke(); ctx.fillText(String(list.length),m+18,y);} else if(side==='right'){const y=clamp(avg,10,H-10); ctx.beginPath(); ctx.moveTo(W-m,y-20); ctx.lineTo(W-m,y+20); ctx.stroke(); ctx.fillText(String(list.length),W-m-18,y);} else if(side==='top'){const x=clamp(avg,10,W-10); ctx.beginPath(); ctx.moveTo(x-20,m); ctx.lineTo(x+20,m); ctx.stroke(); ctx.fillText(String(list.length),x,m+16);} else {const x=clamp(avg,10,W-10); ctx.beginPath(); ctx.moveTo(x-20,H-m); ctx.lineTo(x+20,H-m); ctx.stroke(); ctx.fillText(String(list.length),x,H-m-16);} ctx.restore(); }
+
+// ===== Loop & Waves =====
+let last=0;function loop(ts){const dt=(ts-last)/1000; last=ts; if(playing){controlPlayer(dt); integrate(dt); updateAim(dt); collide(dt); draw(); bullets=bullets.filter(b=>b.life>0); enemyBullets=enemyBullets.filter(b=>b.life>0); missiles=missiles.filter(m=>m.life>0);} requestAnimationFrame(loop);} requestAnimationFrame(loop);
+
+function nextWave(){ wave++; updateHud(); const base=1+Math.floor(wave/4); const room=Math.max(0, SETTINGS.maxEnemies - enemies.length); const count=Math.min(room, Math.min(4, base + (Math.random()<0.35?1:0))); const ringMin=650, ringMax=900; for(let i=0;i<count;i++){ const ang=Math.random()*Math.PI*2; const rad=ringMin+Math.random()*(ringMax-ringMin); const sx=Math.cos(ang)*rad, sy=Math.sin(ang)*rad; const r=Math.random(); const type = r<0.4?'red':(r<0.7?'orange':'white'); spawnEnemy(player.x+sx,player.y+sy,type);} if(Math.random()<Math.min(0.15+wave*0.01,0.35)){ const hang=Math.random()*Math.PI*2; const hrad=ringMin+Math.random()*(ringMax-ringMin); const hx=player.x+Math.cos(hang)*hrad, hy=player.y+Math.sin(hang)*hrad; spawnHazard(hx,hy,60+Math.random()*90, 5+Math.random()*5);} if(playing) setTimeout(nextWave,8000); }
+
+function gameOver(){playing=false;stats.deaths++;updateHud();spawnParticles(player.x,player.y,'#fff066',30);setTimeout(()=>startRun(),900);} 
+function startRun(){reset(); playing=true; draw(); nextWave(); }
+
+// Init
+function updateHud(){document.getElementById('score').textContent=score;document.getElementById('wave').textContent=wave;document.getElementById('hpTxt').textContent=Math.max(0,player.hp|0);document.getElementById('hpBar').style.width=Math.max(0,player.hp)/100*100+'%';document.getElementById('mcd').textContent=Math.max(0,player.missileCD).toFixed(1)+'s';document.getElementById('missileBar').style.width=(1-Math.min(1,player.missileCD/5))*100+'%';document.getElementById('fcd').textContent=Math.max(0,player.flareCD).toFixed(1)+'s';document.getElementById('flareBar').style.width=(1-Math.min(1,player.flareCD/3))*100+'%';const heatPct=Math.round(player.heat*100);document.getElementById('heatTxt').textContent=(player.overheated?'OVERHEATED ':'')+heatPct+'%';document.getElementById('heatBar').style.width=Math.min(100,heatPct)+'%';document.getElementById('heatBar').style.background= player.overheated?'#ff6b6b':'#10e0c0';document.getElementById('stKills').textContent=stats.kills;document.getElementById('stShots').textContent=stats.shots;document.getElementById('stMissiles').textContent=stats.missiles;document.getElementById('stFlares').textContent=stats.flares;document.getElementById('stDeaths').textContent=stats.deaths;}
+reset();
+</script>
+</body>
+</html>

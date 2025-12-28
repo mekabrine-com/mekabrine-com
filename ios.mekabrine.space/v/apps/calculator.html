@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Calculator</title>
+<style>
+  body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif}
+  .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:20px;height:100vh}
+  .disp{grid-column:1/-1;background:#000;color:#fff;font-size:80px;font-weight:200;text-align:right;padding:40px 30px}
+  .btn{aspect-ratio:1;border-radius:50%;border:0;font-size:38px}
+  .n{background:#333;color:#fff}.o{background:#ff9f0a}.f{background:#a5a5a5;color:#000}
+  .zero{grid-column:1/3;border-radius:50px;text-align:left;padding-left:30px}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="disp" id="d">0</div>
+  <button class="btn f" onclick="ac()">AC</button><button class="btn f" onclick="sgn()">±</button><button class="btn f" onclick="pct()">%</button><button class="btn o" onclick="op('/')">÷</button>
+  <button class="btn n" onclick="num('7')">7</button><button class="btn n" onclick="num('8')">8</button><button class="btn n" onclick="num('9')">9</button><button class="btn o" onclick="op('*')">×</button>
+  <button class="btn n" onclick="num('4')">4</button><button class="btn n" onclick="num('5')">5</button><button class="btn n" onclick="num('6')">6</button><button class="btn o" onclick="op('-')">−</button>
+  <button class="btn n" onclick="num('1')">1</button><button class="btn n" onclick="num('2')">2</button><button class="btn n" onclick="num('3')">3</button><button class="btn o" onclick="op('+')">+</button>
+  <button class="btn n zero" onclick="num('0')">0</button><button class="btn n" onclick="dot()">.</button><button class="btn o" onclick="eq()">=</button>
+</div>
+<script>
+let v='0', prev=null, oper=null; const d=document.getElementById('d');
+function num(n){ v = v==='0'?n:v+n; d.textContent=v; }
+function dot(){ if(!v.includes('.')){ v+='.'; d.textContent=v; } }
+function op(o){ oper=o; prev=parseFloat(v); v='0'; }
+function eq(){ if(oper && prev!==null){ const cur=parseFloat(v); let r=0; if(oper==='+') r=prev+cur; if(oper==='-') r=prev-cur; if(oper==='*') r=prev*cur; if(oper==='/') r=prev/cur; v=String(r); oper=null; prev=null; d.textContent=v; } }
+function ac(){ v='0'; oper=null; prev=null; d.textContent='0'; }
+function sgn(){ v=String(parseFloat(v)*-1); d.textContent=v; }
+function pct(){ v=String(parseFloat(v)/100); d.textContent=v; }
+</script>
+</body></html>

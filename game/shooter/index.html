@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Pistol NPC Game</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background:#111; }
+      #overlay {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      }
+      #overlay button {
+        padding: 12px 18px; font-size: 16px; border: 0; border-radius: 8px; cursor: pointer;
+      }
+      #hud { position: fixed; inset: 0; pointer-events: none; }
+      #crosshair {
+        position:absolute; left:50%; top:50%; width:16px; height:16px;
+        margin-left:-8px; margin-top:-8px; opacity:.85;
+      }
+      #crosshair::before, #crosshair::after {
+        content:""; position:absolute; left:50%; top:50%;
+        transform: translate(-50%, -50%); background:#fff;
+      }
+      #crosshair::before { width:14px; height:2px; }
+      #crosshair::after { width:2px; height:14px; }
+      #stats {
+        position: absolute; left: 12px; top: 12px; color: #ddd;
+        font: 14px/1.2 monospace; background: rgba(0,0,0,.35);
+        padding: 8px 10px; border-radius: 8px;
+      }
+      #help {
+        position: absolute; right: 12px; top: 12px; color: #ddd;
+        font: 14px/1.2 system-ui; background: rgba(0,0,0,.35);
+        padding: 8px 10px; border-radius: 8px; text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="overlay">
+      <div style="text-align:center">
+        <h1 style="margin:0 0 16px">3D Pistol NPC Game</h1>
+        <p style="opacity:.8; margin:0 0 16px">
+          Click to lock pointer. WASD to move • Mouse to look • Click to shoot • X = suicide
+        </p>
+        <button id="start">Play</button>
+      </div>
+    </div>
+    <div id="hud">
+      <div id="crosshair"></div>
+      <div id="stats">
+        NPCs: <span id="npcCount">0</span> |
+        Eliminated: <span id="kills">0</span>
+      </div>
+      <div id="help">
+        WASD = move<br/>
+        Mouse = look<br/>
+        Click = shoot<br/>
+        Shift = sprint<br/>
+        X = suicide
+      </div>
+    </div>
+    <script type="module">
+      import * as THREE from 'https://esm.sh/three@0.164.1';
+      import { PointerLockControls } from 'https://esm.sh/three@0.164.1/examples/jsm/controls/PointerLockControls.js';
+      import * as CANNON from 'https://esm.sh/cannon-es@0.20.0';
+
+      // Basic scene
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x20232a);
+
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1500
+      );
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      // Physics world
+      const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+      world.broadphase = new CANNON.SAPBroadphase(world);
+
+      // Ground
+      const groundGeo = new THREE.PlaneGeometry(1000, 1000);
+      const groundMat = new THREE.MeshStandardMaterial({
+        color: 0x2f3b28,
+        roughness: 1,
+        metalness: 0
+      });
+      const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+      groundMesh.rotation.x = -Math.PI / 2;
+      groundMesh.receiveShadow = true;
+      scene.add(groundMesh);
+
+      const groundShape = new CANNON.Plane();
+      const groundBody = new CANNON.Body({ mass: 0, shape: groundShape });
+      groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+      world.addBody(groundBody);
+
+      // Lights
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.5);
+      scene.add(hemi);
+
+      const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+      sun.position.set(40, 80, 30);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      scene.add(sun);
+
+      // Sky
+      const skyGeo = new THREE.SphereGeometry(800, 32, 16);
+      const skyMat = new THREE.MeshBasicMaterial({
+        color: 0x87a6c6,
+        side: THREE.BackSide
+      });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+
+      // Controls
+      const controls = new PointerLockControls(camera, document.body);
+      camera.position.set(0, 1.7, 5);
+
+      const startBtn = document.getElementById('start');
+      const overlay = document.getElementById('overlay');
+
+      startBtn.addEventListener('click', () => {
+        controls.lock();
+      });
+
+      controls.addEventListener('lock', () => {
+        overlay.style.display = 'none';
+      });
+
+      controls.addEventListener('unlock', () => {
+        overlay.style.display = 'grid';
+      });
+
+      // Movement keys
+      const keys = { w: false, a: false, s: false, d: false, shift: false };
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key in keys) keys[e.key] = true;
+        if (e.key === 'Shift') keys.shift = true;
+
+        // suicide key
+        if (e.key === 'x' || e.key === 'X') {
+          if (player.alive) killPlayer('suicide');
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (e.key in keys) keys[e.key] = false;
+        if (e.key === 'Shift') keys.shift = false;
+      });
+
+      const walkSpeed = 6.0;
+      const sprintMult = 1.6;
+
+      // Player state
+      const player = {
+        alive: true,
+        health: 1,
+        disabled: { armL: false, armR: false, legL: false, legR: false },
+        crawling: false,
+        dying: false,
+        dyingTimer: 0,
+        neckDying: false,
+        spewing: 0,
+        spewTimer: 0,
+        leaking: 0,
+        leakTimer: 0,
+        respawnTimer: 0,
+        animT: Math.random() * Math.PI * 2
+      };
+
+      let playerRoot = null;
+      let playerParts = null;
+      const playerHitMeshes = [];
+
+      function updatePlayer(dt) {
+        if (!controls.isLocked) {
+          updatePlayerBodyTransform();
+          updatePlayerAnim(dt, 0);
+          return;
+        }
+        if (!player.alive) {
+          updatePlayerBodyTransform();
+          updatePlayerAnim(dt, 0);
+          return;
+        }
+
+        let speed = walkSpeed * (keys.shift ? sprintMult : 1);
+
+        if (player.disabled.legL || player.disabled.legR) {
+          speed *= 0.6;
+        }
+        if (player.crawling) {
+          speed *= 0.4;
+        }
+
+        const step = speed * dt;
+
+        let moveZ = 0;
+        let moveX = 0;
+
+        if (keys.w) moveZ += step;
+        if (keys.s) moveZ -= step;
+        if (keys.a) moveX -= step;
+        if (keys.d) moveX += step;
+
+        const moving = Math.abs(moveZ) > 0 || Math.abs(moveX) > 0;
+        controls.moveForward(moveZ);
+        controls.moveRight(moveX);
+
+        camera.position.y = 1.7;
+
+        updatePlayerBodyTransform();
+        updatePlayerAnim(dt, moving ? speed : 0);
+      }
+
+      function updatePlayerBodyTransform() {
+        if (!playerRoot) return;
+        // keep body at camera XY, upright, and facing camera's horizontal direction
+        playerRoot.position.set(camera.position.x, 0, camera.position.z);
+
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        dir.y = 0;
+        if (dir.lengthSq() > 0.0001) {
+          dir.normalize();
+          const yaw = Math.atan2(dir.x, dir.z);
+          playerRoot.rotation.set(0, yaw, 0);
+        }
+      }
+
+      // Player pistol
+      const pistol = new THREE.Group();
+      const pistolBody = new THREE.Mesh(
+        new THREE.BoxGeometry(0.22, 0.12, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0x333333 })
+      );
+      const pistolHandle = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.18, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0x262626 })
+      );
+      pistolBody.castShadow = true;
+      pistolHandle.castShadow = true;
+      pistolHandle.position.set(0, -0.15, -0.05);
+      pistol.add(pistolBody);
+      pistol.add(pistolHandle);
+      pistol.position.set(0.28, -0.2, -0.6);
+      pistol.rotation.y = 0.05;
+      camera.add(pistol);
+      scene.add(camera);
+
+      const muzzle = new THREE.Object3D();
+      muzzle.position.set(0, 0, -0.35);
+      pistol.add(muzzle);
+
+      const flash = new THREE.PointLight(0xffeeaa, 0, 5);
+      muzzle.add(flash);
+
+      // Shooting / bullets
+      const shootCooldown = 0.12;
+      let shootTimer = 0;
+      let kills = 0;
+      const bullets = []; // {mesh, dir, life, speed, fromEnemy}
+      const bulletSpeed = 90;
+      const raycaster = new THREE.Raycaster();
+      let playerAggro = false;
+
+      function applySpread(dir, spreadDeg) {
+        const spreadRad = THREE.MathUtils.degToRad(spreadDeg);
+        const axis = new THREE.Vector3(
+          Math.random() - 0.5,
+          Math.random() - 0.5,
+          Math.random() - 0.5
+        ).normalize();
+        const angle = (Math.random() * 2 - 1) * spreadRad;
+        dir.applyAxisAngle(axis, angle).normalize();
+      }
+
+      function spawnBulletVisual(origin, dir, fromEnemy = false) {
+        const geom = new THREE.SphereGeometry(0.03, 10, 10);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xdddddd,
+          metalness: 0.9,
+          roughness: 0.2,
+          emissive: 0x111111
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.castShadow = true;
+        mesh.position.copy(origin);
+        scene.add(mesh);
+
+        bullets.push({
+          mesh,
+          dir: dir.clone().normalize(),
+          life: 0.6,
+          speed: bulletSpeed,
+          fromEnemy
+        });
+      }
+
+      const npcs = [];
+      const npcBounds = 420;
+      const hitMeshesAlive = [];
+      const hitMeshesRagdoll = [];
+      const structureMeshes = [];
+
+      function handleBulletRay(origin, dir, fromEnemy) {
+        const targets = hitMeshesAlive.concat(hitMeshesRagdoll, structureMeshes);
+        if (fromEnemy) {
+          targets.push(...playerHitMeshes);
+        }
+        if (targets.length === 0) return;
+
+        raycaster.set(origin, dir);
+        const hits = raycaster.intersectObjects(targets, true);
+        if (hits.length === 0) return;
+
+        let charactersHit = 0;
+
+        for (const hit of hits) {
+          const point = hit.point.clone();
+          const obj = hit.object;
+          const normal = hit.face
+            ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize()
+            : new THREE.Vector3(0, 1, 0);
+
+          let isStructure = false;
+          let o = obj;
+          while (o) {
+            if (o.userData && o.userData.structure) {
+              isStructure = true;
+              break;
+            }
+            o = o.parent;
+          }
+
+          if (isStructure) {
+            addBulletMark(point, normal);
+            break;
+          }
+
+          const part = obj.userData.part || 'torso';
+          const bloodMult = part === 'torso' ? 4 / 3 : 1;
+
+          spawnParticles(point, 0x6b0a0a, 10, 8, 5, 4, 0.02, 0.03, bloodMult, false);
+          addBulletMark(point, normal);
+
+          const dirHit = dir.clone();
+
+          if (obj.userData && obj.userData.ragdollBody) {
+            const body = obj.userData.ragdollBody;
+            const impulse = new CANNON.Vec3(dirHit.x * 4, dirHit.y * 4, dirHit.z * 4);
+            body.applyImpulse(
+              impulse,
+              new CANNON.Vec3(point.x, point.y, point.z)
+            );
+            if (obj.material && obj.material.color) {
+              obj.material.color.set(0x6b0a0a);
+            }
+            charactersHit++;
+          } else if (obj.userData && obj.userData.npc) {
+            const npc = obj.userData.npc;
+            if (npc.userData && npc.userData.takeHit) {
+              npc.userData.takeHit(1, point, normal, dirHit, part);
+              charactersHit++;
+            }
+          } else if (obj.userData && obj.userData.player) {
+            playerTakeHit(1, point, normal, dirHit, part);
+            charactersHit++;
+          }
+
+          if (charactersHit >= 2) break;
+        }
+      }
+
+      function fire() {
+        if (shootTimer > 0) return;
+        if (!player.alive) return;
+        if (player.disabled.armR) return;
+
+        shootTimer = shootCooldown;
+        playerAggro = true;
+
+        flash.intensity = 10;
+        setTimeout(() => (flash.intensity = 0), 40);
+        pistol.position.z = -0.7;
+        setTimeout(() => (pistol.position.z = -0.6), 60);
+
+        const origin = new THREE.Vector3();
+        muzzle.getWorldPosition(origin);
+
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir).normalize();
+        applySpread(dir, 1); // 1 degree spread
+
+        spawnBulletVisual(origin, dir, false);
+        handleBulletRay(origin, dir, false);
+      }
+
+      window.addEventListener('mousedown', (e) => {
+        if (e.button === 0 && controls.isLocked) fire();
+      });
+
+      function updateBullets(dt) {
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const b = bullets[i];
+          b.life -= dt;
+          if (b.life <= 0) {
+            scene.remove(b.mesh);
+            b.mesh.geometry.dispose();
+            b.mesh.material.dispose();
+            bullets.splice(i, 1);
+            continue;
+          }
+          b.mesh.position.addScaledVector(b.dir, b.speed * dt);
+        }
+      }
+
+      // --- Humanoid models (pill-shaped limbs, fixed proportions) ---
+      function makeHumanoid(bodyColor = 0x6ecb63, limbColor = 0x3a7d44) {
+        const root = new THREE.Group();
+        root.castShadow = true;
+        root.receiveShadow = true;
+
+        const baseBodyMat = new THREE.MeshStandardMaterial({
+          color: bodyColor,
+          roughness: 0.9
+        });
+        const baseHeadMat = new THREE.MeshStandardMaterial({
+          color: 0xf4d7b7,
+          roughness: 0.9
+        });
+        const baseLimbMat = new THREE.MeshStandardMaterial({
+          color: limbColor,
+          roughness: 0.9
+        });
+
+        // Torso split, moved up so it no longer clips into legs
+        const lowerTorso = new THREE.Mesh(
+          new THREE.BoxGeometry(0.9, 0.6, 0.4),
+          baseBodyMat.clone()
+        );
+        lowerTorso.castShadow = true;
+        lowerTorso.position.y = 1.1; // was 0.9
+        lowerTorso.userData.part = 'torso';
+
+        const upperTorso = new THREE.Mesh(
+          new THREE.BoxGeometry(0.9, 0.6, 0.4),
+          baseBodyMat.clone()
+        );
+        upperTorso.castShadow = true;
+        upperTorso.position.y = 1.7; // was 1.5
+        upperTorso.userData.part = 'torso';
+
+        const neck = new THREE.Mesh(
+          new THREE.BoxGeometry(0.3, 0.2, 0.3),
+          baseHeadMat.clone()
+        );
+        neck.castShadow = true;
+        neck.position.y = 2.1; // was 1.9
+        neck.userData.part = 'neck';
+
+        const headGroup = new THREE.Group();
+        const lowerHead = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 0.25, 0.5),
+          baseHeadMat.clone()
+        );
+        lowerHead.castShadow = true;
+        lowerHead.position.y = -0.125;
+        lowerHead.userData.part = 'head';
+
+        const upperHead = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 0.25, 0.5),
+          baseHeadMat.clone()
+        );
+        upperHead.castShadow = true;
+        upperHead.position.y = 0.125;
+        upperHead.userData.part = 'head';
+
+        headGroup.add(lowerHead, upperHead);
+        headGroup.position.y = 2.45; // was 2.2
+
+        function makeCapsuleSegment(height, radius, mat) {
+          const group = new THREE.Group();
+          const cyl = new THREE.Mesh(
+            new THREE.CylinderGeometry(radius, radius, height, 10),
+            mat
+          );
+          cyl.castShadow = true;
+          const sphTop = new THREE.Mesh(
+            new THREE.SphereGeometry(radius, 10, 10),
+            mat
+          );
+          const sphBottom = new THREE.Mesh(
+            new THREE.SphereGeometry(radius, 10, 10),
+            mat
+          );
+          sphTop.castShadow = sphBottom.castShadow = true;
+          sphTop.position.y = height / 2;
+          sphBottom.position.y = -height / 2;
+          group.add(cyl, sphTop, sphBottom);
+          return { group, cyl };
+        }
+
+        // Arms (raised a bit to match higher torso)
+        const armLGroup = new THREE.Group();
+        armLGroup.position.set(-0.7, 1.8, 0); // was 1.5
+
+        const armLUpperMat = baseLimbMat.clone();
+        const armLUpperCapsule = makeCapsuleSegment(0.55, 0.13, armLUpperMat);
+        const armLUpper = armLUpperCapsule.cyl;
+        armLUpper.position.y = -0.275;
+        armLUpper.userData.part = 'armL';
+        armLGroup.add(armLUpperCapsule.group);
+
+        const armLLowerMat = baseLimbMat.clone();
+        const armLLowerCapsule = makeCapsuleSegment(0.55, 0.12, armLLowerMat);
+        const armLLower = armLLowerCapsule.cyl;
+        armLLower.position.y = -0.5;
+        armLLower.userData.part = 'armL';
+        armLUpper.add(armLLowerCapsule.group);
+
+        const armRGroup = new THREE.Group();
+        armRGroup.position.set(0.7, 1.8, 0); // was 1.5
+
+        const armRUpperMat = baseLimbMat.clone();
+        const armRUpperCapsule = makeCapsuleSegment(0.55, 0.13, armRUpperMat);
+        const armRUpper = armRUpperCapsule.cyl;
+        armRUpper.position.y = -0.275;
+        armRUpper.userData.part = 'armR';
+        armRGroup.add(armRUpperCapsule.group);
+
+        const armRLowerMat = baseLimbMat.clone();
+        const armRLowerCapsule = makeCapsuleSegment(0.55, 0.12, armRLowerMat);
+        const armRLower = armRLowerCapsule.cyl;
+        armRLower.position.y = -0.5;
+        armRLower.userData.part = 'armR';
+        armRUpper.add(armRLowerCapsule.group);
+
+        // Legs (slightly lowered so they connect cleanly under torso)
+        const legLGroup = new THREE.Group();
+        legLGroup.position.set(-0.3, 0.8, 0); // was 0.6
+
+        const legLUpperMat = baseLimbMat.clone();
+        const legLUpperCapsule = makeCapsuleSegment(0.6, 0.15, legLUpperMat);
+        const legLUpper = legLUpperCapsule.cyl;
+        legLUpper.position.y = -0.3;
+        legLUpper.userData.part = 'legL';
+        legLGroup.add(legLUpperCapsule.group);
+
+        const legLLowerMat = baseLimbMat.clone();
+        const legLLowerCapsule = makeCapsuleSegment(0.6, 0.14, legLLowerMat);
+        const legLLower = legLLowerCapsule.cyl;
+        legLLower.position.y = -0.55;
+        legLLower.userData.part = 'legL';
+        legLUpper.add(legLLowerCapsule.group);
+
+        const legRGroup = new THREE.Group();
+        legRGroup.position.set(0.3, 0.8, 0); // was 0.6
+
+        const legRUpperMat = baseLimbMat.clone();
+        const legRUpperCapsule = makeCapsuleSegment(0.6, 0.15, legRUpperMat);
+        const legRUpper = legRUpperCapsule.cyl;
+        legRUpper.position.y = -0.3;
+        legRUpper.userData.part = 'legR';
+        legRGroup.add(legRUpperCapsule.group);
+
+        const legRLowerMat = baseLimbMat.clone();
+        const legRLowerCapsule = makeCapsuleSegment(0.6, 0.14, legRLowerMat);
+        const legRLower = legRLowerCapsule.cyl;
+        legRLower.position.y = -0.55;
+        legRLower.userData.part = 'legR';
+        legRUpper.add(legRLowerCapsule.group);
+
+        root.add(
+          lowerTorso,
+          upperTorso,
+          neck,
+          headGroup,
+          armLGroup,
+          armRGroup,
+          legLGroup,
+          legRGroup
+        );
+
+        root.userData.parts = {
+          lowerTorso,
+          upperTorso,
+          neck,
+          headGroup,
+          lowerHead,
+          upperHead,
+          armLGroup,
+          armRGroup,
+          legLGroup,
+          legRGroup,
+          armLUpper,
+          armLLower,
+          armRUpper,
+          armRLower,
+          legLUpper,
+          legLLower,
+          legRUpper,
+          legRLower,
+          baseBodyMat,
+          baseHeadMat,
+          baseLimbMat
+        };
+
+        return root;
+      }
+
+      // Player body
+      (function initPlayerBody() {
+        playerRoot = makeHumanoid(0x9b9b9b, 0x666666);
+        playerParts = playerRoot.userData.parts;
+
+        playerParts.lowerHead.material.transparent = true;
+        playerParts.lowerHead.material.opacity = 0.0;
+        playerParts.upperHead.material.transparent = true;
+        playerParts.upperHead.material.opacity = 0.0;
+
+        playerRoot.position.set(camera.position.x, 0, camera.position.z);
+        scene.add(playerRoot);
+
+        const meshes = [
+          playerParts.lowerTorso,
+          playerParts.upperTorso,
+          playerParts.neck,
+          playerParts.lowerHead,
+          playerParts.upperHead,
+          playerParts.armLUpper,
+          playerParts.armLLower,
+          playerParts.armRUpper,
+          playerParts.armRLower,
+          playerParts.legLUpper,
+          playerParts.legLLower,
+          playerParts.legRUpper,
+          playerParts.legRLower
+        ];
+        for (const m of meshes) {
+          m.userData.player = true;
+          m.userData.part = m.userData.part || 'torso';
+          playerHitMeshes.push(m);
+        }
+
+        playerRoot.userData.baseColors = {
+          torso: 0x9b9b9b,
+          limb: 0x666666,
+          head: 0xf4d7b7
+        };
+      })();
+
+      function colorNpcLimb(npc, part) {
+        const p = npc.children[0].userData.parts;
+        const red = 0x6b0a0a;
+        if (part === 'torso') {
+          p.lowerTorso.material.color.set(red);
+          p.upperTorso.material.color.set(red);
+        } else if (part === 'neck') {
+          p.neck.material.color.set(red);
+        } else if (part === 'head') {
+          p.lowerHead.material.color.set(red);
+          p.upperHead.material.color.set(red);
+        } else if (part === 'armL') {
+          p.armLUpper.material.color.set(red);
+          p.armLLower.material.color.set(red);
+        } else if (part === 'armR') {
+          p.armRUpper.material.color.set(red);
+          p.armRLower.material.color.set(red);
+        } else if (part === 'legL') {
+          p.legLUpper.material.color.set(red);
+          p.legLLower.material.color.set(red);
+        } else if (part === 'legR') {
+          p.legRUpper.material.color.set(red);
+          p.legRLower.material.color.set(red);
+        }
+      }
+
+      function colorPlayerLimb(part) {
+        if (!playerParts) return;
+        const red = 0x6b0a0a;
+        if (part === 'torso') {
+          playerParts.lowerTorso.material.color.set(red);
+          playerParts.upperTorso.material.color.set(red);
+        } else if (part === 'neck') {
+          playerParts.neck.material.color.set(red);
+        } else if (part === 'head') {
+          playerParts.lowerHead.material.color.set(red);
+          playerParts.upperHead.material.color.set(red);
+        } else if (part === 'armL') {
+          playerParts.armLUpper.material.color.set(red);
+          playerParts.armLLower.material.color.set(red);
+        } else if (part === 'armR') {
+          playerParts.armRUpper.material.color.set(red);
+          playerParts.armRLower.material.color.set(red);
+        } else if (part === 'legL') {
+          playerParts.legLUpper.material.color.set(red);
+          playerParts.legLLower.material.color.set(red);
+        } else if (part === 'legR') {
+          playerParts.legRUpper.material.color.set(red);
+          playerParts.legRLower.material.color.set(red);
+        }
+      }
+
+      function spawnNPC(x, z) {
+        const npc = new THREE.Group();
+        const body = makeHumanoid(0x6ecb63, 0x3a7d44);
+        npc.add(body);
+        npc.position.set(x, 0, z);
+
+        npc.userData.alive = true;
+        npc.userData.health = 1;
+        npc.userData.speed = 1.3 + Math.random() * 0.7;
+        npc.userData.dir = new THREE.Vector3(
+          Math.random() - 0.5,
+          0,
+          Math.random() - 0.5
+        ).normalize();
+        npc.userData.turnTimer = 0;
+        npc.userData.animT = Math.random() * Math.PI * 2;
+        npc.userData.disabled = {
+          armL: false,
+          armR: false,
+          legL: false,
+          legR: false
+        };
+        npc.userData.crawling = false;
+        npc.userData.dying = false;
+        npc.userData.dyingTimer = 0;
+        npc.userData.neckDying = false;
+        npc.userData.spewing = 0;
+        npc.userData.spewTimer = 0;
+        npc.userData.leaking = 0;
+        npc.userData.leakTimer = 0;
+        npc.userData.hostile = false;
+
+        npc.userData.takeHit = (dmg, hitPos, hitNormal, hitDir, part) => {
+          if (!npc.userData.alive) return;
+
+          colorNpcLimb(npc, part);
+
+          if (part === 'head') {
+            npc.userData.health -= dmg;
+            if (npc.userData.health <= 0) {
+              killNPC(npc, hitPos, hitDir, part, false);
+            }
+            return;
+          }
+
+          if (part === 'neck') {
+            npc.userData.health -= dmg;
+            if (npc.userData.health <= 0 && !npc.userData.dying) {
+              npc.userData.dying = true;
+              npc.userData.neckDying = true;
+              npc.userData.dyingTimer = 20;
+              npc.children[0].position.y = -0.4;
+              npc.userData.spewing = 20;
+              npc.userData.spewTimer = 0;
+              npc.userData.speed = 0;
+            }
+            return;
+          }
+
+          if (part === 'torso') {
+            npc.userData.health -= dmg;
+            if (npc.userData.health <= 0 && !npc.userData.dying) {
+              npc.userData.dying = true;
+              npc.userData.dyingTimer = 4;
+              const awayDir = npc.position.clone().sub(camera.position).normalize();
+              npc.userData.dir.copy(awayDir);
+              npc.userData.speed *= 1.8;
+              npc.userData.leaking = 4;
+              npc.userData.leakTimer = 0;
+            }
+            return;
+          }
+
+          if (part === 'armL' || part === 'armR' || part === 'legL' || part === 'legR') {
+            if (!npc.userData.disabled[part]) {
+              npc.userData.disabled[part] = true;
+              if (part === 'legL' || part === 'legR') {
+                npc.userData.speed *= 0.6;
+              }
+            }
+            const d = npc.userData.disabled;
+            if (d.legL && d.legR && !npc.userData.crawling) {
+              npc.userData.crawling = true;
+              npc.userData.speed *= 0.3;
+              npc.children[0].position.y = -0.8;
+              const awayDir = npc.position.clone().sub(camera.position).normalize();
+              npc.userData.dir.copy(awayDir);
+            }
+          }
+        };
+
+        const p = body.userData.parts;
+        const meshesForHit = [
+          p.lowerTorso,
+          p.upperTorso,
+          p.neck,
+          p.lowerHead,
+          p.upperHead,
+          p.armLUpper,
+          p.armLLower,
+          p.armRUpper,
+          p.armRLower,
+          p.legLUpper,
+          p.legLLower,
+          p.legRUpper,
+          p.legRLower
+        ];
+        for (const m of meshesForHit) {
+          m.userData.npc = npc;
+          hitMeshesAlive.push(m);
+        }
+
+        npcs.push(npc);
+        scene.add(npc);
+      }
+
+      function spawnHostileNPC(x, z) {
+        const npc = new THREE.Group();
+        const body = makeHumanoid(0x4d7edc, 0x3454a4);
+        npc.add(body);
+        npc.position.set(x, 0, z);
+
+        npc.userData.alive = true;
+        npc.userData.health = 1;
+        npc.userData.speed = 1.6 + Math.random() * 0.6;
+        npc.userData.dir = new THREE.Vector3(
+          Math.random() - 0.5,
+          0,
+          Math.random() - 0.5
+        ).normalize();
+        npc.userData.turnTimer = 0;
+        npc.userData.animT = Math.random() * Math.PI * 2;
+        npc.userData.disabled = {
+          armL: false,
+          armR: false,
+          legL: false,
+          legR: false
+        };
+        npc.userData.crawling = false;
+        npc.userData.dying = false;
+        npc.userData.dyingTimer = 0;
+        npc.userData.neckDying = false;
+        npc.userData.spewing = 0;
+        npc.userData.spewTimer = 0;
+        npc.userData.leaking = 0;
+        npc.userData.leakTimer = 0;
+        npc.userData.hostile = true;
+        npc.userData.shootTimer = 1 + Math.random();
+
+        const parts = body.userData.parts;
+
+        const hostilePistol = new THREE.Group();
+        const hBody = new THREE.Mesh(
+          new THREE.BoxGeometry(0.18, 0.09, 0.4),
+          new THREE.MeshStandardMaterial({ color: 0x222222 })
+        );
+        const hHandle = new THREE.Mesh(
+          new THREE.BoxGeometry(0.08, 0.16, 0.1),
+          new THREE.MeshStandardMaterial({ color: 0x101010 })
+        );
+        hBody.castShadow = true;
+        hHandle.castShadow = true;
+        hHandle.position.set(0, -0.12, -0.02);
+        hostilePistol.add(hBody);
+        hostilePistol.add(hHandle);
+        hostilePistol.position.set(0.08, -0.4, -0.05);
+        hostilePistol.rotation.y = Math.PI;
+
+        const hostileMuzzle = new THREE.Object3D();
+        hostileMuzzle.position.set(0, 0.0, -0.25);
+        hostilePistol.add(hostileMuzzle);
+
+        parts.armRLower.add(hostilePistol);
+        npc.userData.muzzle = hostileMuzzle;
+
+        npc.userData.takeHit = (dmg, hitPos, hitNormal, hitDir, part) => {
+          if (!npc.userData.alive) return;
+
+          colorNpcLimb(npc, part);
+
+          if (part === 'head') {
+            npc.userData.health -= dmg;
+            if (npc.userData.health <= 0) {
+              killNPC(npc, hitPos, hitDir, part, false);
+            }
+            return;
+          }
+
+          if (part === 'neck') {
+            npc.userData.health -= dmg;
+            if (npc.userData.health <= 0 && !npc.userData.dying) {
+              npc.userData.dying = true;
+              npc.userData.neckDying = true;
+              npc.userData.dyingTimer = 20;
+              npc.children[0].position.y = -0.4;
+              npc.userData.spewing = 20;
+              npc.userData.spewTimer = 0;
+              npc.userData.speed = 0;
+            }
+            return;
+          }
+
+          if (part === 'torso') {
+            npc.userData.health -= dmg;
+            if (npc.userData.health <= 0 && !npc.userData.dying) {
+              npc.userData.dying = true;
+              npc.userData.dyingTimer = 4;
+              const awayDir = npc.position.clone().sub(camera.position).normalize();
+              npc.userData.dir.copy(awayDir);
+              npc.userData.speed *= 1.8;
+              npc.userData.leaking = 4;
+              npc.userData.leakTimer = 0;
+            }
+            return;
+          }
+
+          if (part === 'armL' || part === 'armR' || part === 'legL' || part === 'legR') {
+            if (!npc.userData.disabled[part]) {
+              npc.userData.disabled[part] = true;
+              if (part === 'legL' || part === 'legR') {
+                npc.userData.speed *= 0.6;
+              }
+            }
+            const d = npc.userData.disabled;
+            if (d.legL && d.legR && !npc.userData.crawling) {
+              npc.userData.crawling = true;
+              npc.userData.speed *= 0.3;
+              npc.children[0].position.y = -0.8;
+              const awayDir = npc.position.clone().sub(camera.position).normalize();
+              npc.userData.dir.copy(awayDir);
+            }
+          }
+        };
+
+        const meshesForHit = [
+          parts.lowerTorso,
+          parts.upperTorso,
+          parts.neck,
+          parts.lowerHead,
+          parts.upperHead,
+          parts.armLUpper,
+          parts.armLLower,
+          parts.armRUpper,
+          parts.armRLower,
+          parts.legLUpper,
+          parts.legLLower,
+          parts.legRUpper,
+          parts.legRLower
+        ];
+        for (const m of meshesForHit) {
+          m.userData.npc = npc;
+          hitMeshesAlive.push(m);
+        }
+
+        npcs.push(npc);
+        scene.add(npc);
+      }
+
+      function killNPC(npc, hitPos, hitDir, part, noKnockback = false) {
+        npc.userData.alive = false;
+        kills++;
+        document.getElementById('kills').textContent = kills.toString();
+
+        const parts = npc.children[0].userData.parts;
+        const meshesForHit = [
+          parts.lowerTorso,
+          parts.upperTorso,
+          parts.neck,
+          parts.lowerHead,
+          parts.upperHead,
+          parts.armLUpper,
+          parts.armLLower,
+          parts.armRUpper,
+          parts.armRLower,
+          parts.legLUpper,
+          parts.legLLower,
+          parts.legRUpper,
+          parts.legRLower
+        ];
+        for (const m of meshesForHit) {
+          const idx = hitMeshesAlive.indexOf(m);
+          if (idx !== -1) hitMeshesAlive.splice(idx, 1);
+        }
+
+        const isHeadShot = part === 'head';
+        const rag = buildRagdollFrom(npc, isHeadShot, hitDir);
+        rag.leaking = part === 'torso' ? 10 : 0;
+        rag.leakTimer = 0;
+
+        scene.remove(npc);
+
+        if (!noKnockback && hitDir && rag.bodies && rag.bodies.torso) {
+          const impulse = new CANNON.Vec3(
+            hitDir.x * 0.6,
+            hitDir.y * 0.6,
+            hitDir.z * 0.6
+          );
+          rag.bodies.torso.applyImpulse(impulse, rag.bodies.torso.position);
+        }
+      }
+
+      const ragdolls = [];
+
+      function buildRagdollFrom(npc, isHeadShot, hitDir) {
+        const parts = npc.children[0].userData.parts;
+
+        const wp = (m) => {
+          const p = new THREE.Vector3();
+          m.getWorldPosition(p);
+          return p;
+        };
+        const wq = (m) => {
+          const q = new THREE.Quaternion();
+          m.getWorldQuaternion(q);
+          return q;
+        };
+
+        function createRB(size, pos, quat, mass, color) {
+          const mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(size.x, size.y, size.z),
+            new THREE.MeshStandardMaterial({ color })
+          );
+          mesh.castShadow = true;
+          mesh.position.copy(pos);
+          mesh.quaternion.copy(quat);
+          scene.add(mesh);
+
+          const shape = new CANNON.Box(
+            new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2)
+          );
+          const body = new CANNON.Body({ mass, shape });
+          body.position.set(pos.x, pos.y, pos.z);
+          body.quaternion.set(quat.x, quat.y, quat.z, quat.w);
+          body.linearDamping = 0.2;
+          body.angularDamping = 0.4;
+          body.mesh = mesh;
+          mesh.userData.ragdollBody = body;
+          world.addBody(body);
+          hitMeshesRagdoll.push(mesh);
+          return { mesh, body };
+        }
+
+        function createCapsuleRB(height, radius, pos, quat, mass, color) {
+          const group = new THREE.Group();
+          const mat = new THREE.MeshStandardMaterial({ color });
+          const cyl = new THREE.Mesh(
+            new THREE.CylinderGeometry(radius, radius, height, 10),
+            mat
+          );
+          const sphTop = new THREE.Mesh(
+            new THREE.SphereGeometry(radius, 10, 10),
+            mat
+          );
+          const sphBottom = new THREE.Mesh(
+            new THREE.SphereGeometry(radius, 10, 10),
+            mat
+          );
+          cyl.castShadow = sphTop.castShadow = sphBottom.castShadow = true;
+          sphTop.position.y = height / 2;
+          sphBottom.position.y = -height / 2;
+          group.add(cyl, sphTop, sphBottom);
+          group.position.copy(pos);
+          group.quaternion.copy(quat);
+          scene.add(group);
+
+          const shape = new CANNON.Box(
+            new CANNON.Vec3(radius, height / 2, radius)
+          );
+          const body = new CANNON.Body({ mass, shape });
+          body.position.set(pos.x, pos.y, pos.z);
+          body.quaternion.set(quat.x, quat.y, quat.z, quat.w);
+          body.linearDamping = 0.2;
+          body.angularDamping = 0.4;
+          body.mesh = group;
+          world.addBody(body);
+
+          group.userData.ragdollBody = body;
+          group.traverse((o) => {
+            o.userData = o.userData || {};
+            o.userData.ragdollBody = body;
+          });
+
+          hitMeshesRagdoll.push(group);
+          return { mesh: group, body };
+        }
+
+        const lowerTorso = createRB(
+          new THREE.Vector3(0.9, 0.6, 0.4),
+          wp(parts.lowerTorso),
+          wq(parts.lowerTorso),
+          3.5,
+          0x578a50
+        );
+        const upperTorso = createRB(
+          new THREE.Vector3(0.9, 0.6, 0.4),
+          wp(parts.upperTorso),
+          wq(parts.upperTorso),
+          4.5,
+          0x578a50
+        );
+
+        const neck = createRB(
+          new THREE.Vector3(0.3, 0.2, 0.3),
+          wp(parts.neck),
+          wq(parts.neck),
+          1,
+          0xd8c2a0
+        );
+
+        let head;
+
+        if (isHeadShot) {
+          head = createRB(
+            new THREE.Vector3(0.5, 0.25, 0.5),
+            wp(parts.lowerHead),
+            wq(parts.lowerHead),
+            1.5,
+            0x8b0000
+          );
+
+          const upperPos = wp(parts.upperHead);
+          const upperQuat = wq(parts.upperHead);
+          const upper = createRB(
+            new THREE.Vector3(0.5, 0.25, 0.5),
+            upperPos,
+            upperQuat,
+            0.5,
+            0xd8c2a0
+          );
+
+          const explosionDir = hitDir.clone().multiplyScalar(8).add(
+            new THREE.Vector3(0, 4, 0).add(
+              new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+              )
+            )
+          );
+          upper.body.applyImpulse(
+            new CANNON.Vec3(explosionDir.x, explosionDir.y, explosionDir.z),
+            upper.body.position
+          );
+
+          spawnParticles(upperPos, 0x6b0a0a, 15, 10, 6, 5, 0.02, 0.03, 1, true);
+          spawnParticles(upperPos, 0xf5f5f5, 10, 8, 7, 6, 0.015, 0.02, 1, true);
+          spawnParticles(upperPos, 0xffc0cb, 8, 6, 5, 4, 0.025, 0.035, 1, true);
+        } else {
+          head = createRB(
+            new THREE.Vector3(0.5, 0.5, 0.5),
+            wp(parts.headGroup),
+            wq(parts.headGroup),
+            1.5,
+            0xd8c2a0
+          );
+        }
+
+        const armLUpper = createCapsuleRB(
+          0.55,
+          0.13,
+          wp(parts.armLUpper),
+          wq(parts.armLUpper),
+          1.3,
+          0x2f6a39
+        );
+        const armLLower = createCapsuleRB(
+          0.55,
+          0.12,
+          wp(parts.armLLower),
+          wq(parts.armLLower),
+          1.1,
+          0x2f6a39
+        );
+
+        const armRUpper = createCapsuleRB(
+          0.55,
+          0.13,
+          wp(parts.armRUpper),
+          wq(parts.armRUpper),
+          1.3,
+          0x2f6a39
+        );
+        const armRLower = createCapsuleRB(
+          0.55,
+          0.12,
+          wp(parts.armRLower),
+          wq(parts.armRLower),
+          1.1,
+          0x2f6a39
+        );
+
+        const legLUpper = createCapsuleRB(
+          0.6,
+          0.15,
+          wp(parts.legLUpper),
+          wq(parts.legLUpper),
+          1.8,
+          0x2f6a39
+        );
+        const legLLower = createCapsuleRB(
+          0.6,
+          0.14,
+          wp(parts.legLLower),
+          wq(parts.legLLower),
+          1.8,
+          0x2f6a39
+        );
+
+        const legRUpper = createCapsuleRB(
+          0.6,
+          0.15,
+          wp(parts.legRUpper),
+          wq(parts.legRUpper),
+          1.8,
+          0x2f6a39
+        );
+        const legRLower = createCapsuleRB(
+          0.6,
+          0.14,
+          wp(parts.legRLower),
+          wq(parts.legRLower),
+          1.8,
+          0x2f6a39
+        );
+
+        const v = (x, y, z) => new CANNON.Vec3(x, y, z);
+
+        function addBall(a, b, ap, bp) {
+          const c = new CANNON.PointToPointConstraint(a.body, ap, b.body, bp);
+          world.addConstraint(c);
+        }
+
+        addBall(lowerTorso, upperTorso, v(0, 0.3, 0), v(0, -0.3, 0));
+
+        addBall(upperTorso, armLUpper, v(-0.45, 0.2, 0), v(0, 0.275, 0));
+        addBall(upperTorso, armRUpper, v(0.45, 0.2, 0), v(0, 0.275, 0));
+
+        addBall(armLUpper, armLLower, v(0, -0.275, 0), v(0, 0.275, 0));
+        addBall(armRUpper, armRLower, v(0, -0.275, 0), v(0, 0.275, 0));
+
+        addBall(lowerTorso, legLUpper, v(-0.25, -0.3, 0), v(0, 0.3, 0));
+        addBall(lowerTorso, legRUpper, v(0.25, -0.3, 0), v(0, 0.3, 0));
+
+        addBall(legLUpper, legLLower, v(0, -0.3, 0), v(0, 0.3, 0));
+        addBall(legRUpper, legRLower, v(0, -0.3, 0), v(0, 0.3, 0));
+
+        addBall(upperTorso, neck, v(0, 0.3, 0), v(0, -0.1, 0));
+        addBall(neck, head, v(0, 0.1, 0), v(0, -0.25, 0));
+
+        const bodies = {
+          torso: upperTorso.body,
+          lowerTorso: lowerTorso.body,
+          upperTorso: upperTorso.body,
+          neck: neck.body,
+          head: head.body,
+          armLUpper: armLUpper.body,
+          armLLower: armLLower.body,
+          armRUpper: armRUpper.body,
+          armRLower: armRLower.body,
+          legLUpper: legLUpper.body,
+          legLLower: legLLower.body,
+          legRUpper: legRUpper.body,
+          legRLower: legRLower.body
+        };
+
+        const rag = { bodies };
+        ragdolls.push(rag);
+        return rag;
+      }
+
+      // Blood + stains (unchanged)
+      const bloods = [];
+
+      function spawnParticles(pos, color, countMin, countRand, speedMin, speedRand, sizeMin, sizeRand, mult = 1, longLife = false, baseVel = null) {
+        const count = Math.floor((countMin + Math.random() * countRand) * mult);
+        for (let i = 0; i < count; i++) {
+          const geom = new THREE.SphereGeometry(
+            sizeMin + Math.random() * sizeRand,
+            6,
+            6
+          );
+          const mat = new THREE.MeshStandardMaterial({
+            color,
+            roughness: 1,
+            metalness: 0,
+            transparent: true,
+            opacity: 0.95
+          });
+          const m = new THREE.Mesh(geom, mat);
+          m.position.copy(pos);
+          m.castShadow = true;
+          m.receiveShadow = true;
+
+          const dir = new THREE.Vector3(
+            Math.random() - 0.5,
+            Math.random() * 0.9,
+            Math.random() - 0.5
+          ).normalize();
+          const speed = speedMin + Math.random() * speedRand;
+          let vel = dir.multiplyScalar(speed);
+          if (baseVel) vel.add(baseVel);
+
+          scene.add(m);
+          bloods.push({
+            mesh: m,
+            vel,
+            life: longLife ? 20 : (0.9 + Math.random() * 0.6),
+            stained: false,
+            longLife
+          });
+        }
+      }
+
+      function makeStainAt(pos, vel) {
+        const speedFactor = Math.min(1.0, vel.length() / 12);
+        const r = 0.2 + Math.random() * 0.35 + speedFactor * 0.4;
+        const geom = new THREE.CircleGeometry(r, 16);
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0x3f0a0a,
+          transparent: true,
+          opacity: 0.9
+        });
+        const stain = new THREE.Mesh(geom, mat);
+        stain.rotation.x = -Math.PI / 2;
+        stain.rotation.z = Math.random() * Math.PI;
+        stain.position.set(pos.x, 0.0005, pos.z);
+        scene.add(stain);
+      }
+
+      function updateBlood(dt) {
+        for (let i = bloods.length - 1; i >= 0; i--) {
+          const p = bloods[i];
+          p.life -= dt;
+          if (p.life <= 0) {
+            if (p.longLife) {
+              p.vel.set(0, 0, 0);
+              if (p.mesh.position.y <= 0.001) {
+                p.mesh.position.y = 0.001;
+                if (!p.stained) {
+                  makeStainAt(p.mesh.position.clone(), p.vel.clone());
+                  p.stained = true;
+                }
+              }
+            } else {
+              p.mesh.material.opacity -= 2 * dt;
+              if (p.mesh.material.opacity <= 0) {
+                scene.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+                bloods.splice(i, 1);
+                continue;
+              }
+            }
+          } else {
+            p.vel.y -= 9.8 * dt;
+            p.mesh.position.addScaledVector(p.vel, dt);
+            if (p.mesh.position.y <= 0.001) {
+              p.mesh.position.y = 0.001;
+              if (!p.stained) {
+                makeStainAt(p.mesh.position.clone(), p.vel.clone());
+                p.stained = true;
+              }
+              p.vel.set(0, 0, 0);
+            }
+          }
+        }
+      }
+
+      function addBulletMark(point, normal) {
+        const radius = 0.05 + Math.random() * 0.03;
+        const geom = new THREE.CircleGeometry(radius, 12);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+        const mark = new THREE.Mesh(geom, mat);
+        const up = new THREE.Vector3(0, 1, 0);
+        const quat = new THREE.Quaternion().setFromUnitVectors(
+          up,
+          normal.clone().normalize()
+        );
+        mark.quaternion.copy(quat);
+        const offsetPoint = point
+          .clone()
+          .add(normal.clone().multiplyScalar(-0.01));
+        mark.position.copy(offsetPoint);
+        mark.rotation.z = Math.random() * Math.PI;
+        scene.add(mark);
+      }
+
+      function playerTakeHit(dmg, hitPos, hitNormal, hitDir, part) {
+        if (!player.alive) return;
+
+        colorPlayerLimb(part);
+
+        if (part === 'head') {
+          player.health -= dmg;
+          if (player.health <= 0) killPlayer('head');
+          return;
+        }
+
+        if (part === 'neck') {
+          player.health -= dmg;
+          if (player.health <= 0 && !player.dying) {
+            player.dying = true;
+            player.neckDying = true;
+            player.dyingTimer = 20;
+            player.spewing = 20;
+            player.spewTimer = 0;
+          }
+          return;
+        }
+
+        if (part === 'torso') {
+          player.health -= dmg;
+          if (player.health <= 0 && !player.dying) {
+            player.dying = true;
+            player.neckDying = false;
+            player.dyingTimer = 4;
+            player.leaking = 4;
+            player.leakTimer = 0;
+          }
+          return;
+        }
+
+        if (part === 'armL' || part === 'armR' || part === 'legL' || part === 'legR') {
+          if (!player.disabled[part]) {
+            player.disabled[part] = true;
+          }
+          if (player.disabled.legL && player.disabled.legR && !player.crawling) {
+            player.crawling = true;
+          }
+        }
+      }
+
+      function killPlayer() {
+        if (!player.alive) return;
+        player.alive = false;
+        player.dying = false;
+        player.spewing = 0;
+        player.leaking = 0;
+        player.respawnTimer = 3;
+
+        if (playerParts) {
+          const pos = new THREE.Vector3();
+          playerParts.upperTorso.getWorldPosition(pos);
+          spawnParticles(pos, 0x6b0a0a, 5, 5, 2, 2, 0.02, 0.03, 1, false);
+        }
+      }
+
+      function respawnPlayer() {
+        player.alive = true;
+        player.health = 1;
+        player.disabled.armL = player.disabled.armR = false;
+        player.disabled.legL = player.disabled.legR = false;
+        player.crawling = false;
+        player.dying = false;
+        player.neckDying = false;
+        player.spewing = 0;
+        player.leaking = 0;
+        player.dyingTimer = 0;
+
+        if (playerRoot && playerParts && playerRoot.userData.baseColors) {
+          const base = playerRoot.userData.baseColors;
+          playerParts.lowerTorso.material.color.set(base.torso);
+          playerParts.upperTorso.material.color.set(base.torso);
+          playerParts.neck.material.color.set(base.head);
+          playerParts.lowerHead.material.color.set(base.head);
+          playerParts.upperHead.material.color.set(base.head);
+          playerParts.armLUpper.material.color.set(base.limb);
+          playerParts.armLLower.material.color.set(base.limb);
+          playerParts.armRUpper.material.color.set(base.limb);
+          playerParts.armRLower.material.color.set(base.limb);
+          playerParts.legLUpper.material.color.set(base.limb);
+          playerParts.legLLower.material.color.set(base.limb);
+          playerParts.legRUpper.material.color.set(base.limb);
+          playerParts.legRLower.material.color.set(base.limb);
+        }
+
+        camera.position.set(0, 1.7, 5);
+      }
+
+      function updatePlayerDamageEffects(dt) {
+        if (!player.alive) {
+          if (player.respawnTimer > 0) {
+            player.respawnTimer -= dt;
+            if (player.respawnTimer <= 0) {
+              respawnPlayer();
+            }
+          }
+          return;
+        }
+
+        if (player.dying) {
+          player.dyingTimer -= dt;
+          if (player.dyingTimer <= 0) {
+            killPlayer();
+            return;
+          }
+        }
+
+        if (player.leaking > 0 && playerParts) {
+          player.leakTimer -= dt;
+          if (player.leakTimer <= 0) {
+            player.leakTimer = 0.1 + Math.random() * 0.2;
+            const leakPos = new THREE.Vector3();
+            playerParts.upperTorso.getWorldPosition(leakPos);
+            leakPos.y += (Math.random() - 0.5) * 0.8;
+            spawnParticles(
+              leakPos,
+              0x6b0a0a,
+              2,
+              2,
+              1,
+              1,
+              0.02,
+              0.02,
+              1,
+              false
+            );
+          }
+          player.leaking -= dt;
+          if (player.leaking <= 0) player.leaking = 0;
+        }
+
+        if (player.spewing > 0 && playerParts) {
+          player.spewTimer -= dt;
+          if (player.spewTimer <= 0) {
+            player.spewTimer = 0.1 + Math.random() * 0.2;
+            const throatPos = new THREE.Vector3();
+            playerParts.neck.getWorldPosition(throatPos);
+            const forward = new THREE.Vector3(
+              Math.sin(camera.rotation.y),
+              0,
+              Math.cos(camera.rotation.y)
+            );
+            throatPos.add(forward.multiplyScalar(0.15));
+            const baseVel = forward.multiplyScalar(3);
+            spawnParticles(
+              throatPos,
+              0x6b0a0a,
+              3,
+              3,
+              1,
+              2,
+              0.02,
+              0.03,
+              1,
+              false,
+              baseVel
+            );
+          }
+          player.spewing -= dt;
+          if (player.spewing <= 0) player.spewing = 0;
+        }
+      }
+
+      function hostileFire(npc) {
+        if (!npc.userData.muzzle) return;
+        if (npc.userData.disabled && npc.userData.disabled.armR) return;
+
+        const origin = new THREE.Vector3();
+        npc.userData.muzzle.getWorldPosition(origin);
+
+        const dir = camera.position.clone().sub(origin).normalize();
+        applySpread(dir, 1);
+
+        spawnBulletVisual(origin, dir, true);
+        handleBulletRay(origin, dir, true);
+      }
+
+      function applyWalkAnimation(targetParts, disabled, crawling, animT, speedScale) {
+        const s = Math.sin(animT) * 0.7 * speedScale;
+        const c = Math.cos(animT) * 0.7 * speedScale;
+
+        targetParts.upperTorso.rotation.x = 0.05 * s;
+        targetParts.lowerTorso.rotation.x = 0.03 * -s;
+
+        if (!disabled.armL) {
+          targetParts.armLGroup.rotation.x = s;
+          targetParts.armLUpper.rotation.x = 0.25 * s;
+          targetParts.armLLower.rotation.x = 0.5 * s;
+        } else {
+          targetParts.armLGroup.rotation.x += (1.4 - targetParts.armLGroup.rotation.x) * 0.2;
+        }
+
+        if (!disabled.armR) {
+          targetParts.armRGroup.rotation.x = -s;
+          targetParts.armRUpper.rotation.x = 0.25 * -s;
+          targetParts.armRLower.rotation.x = 0.5 * -s;
+        } else {
+          targetParts.armRGroup.rotation.x += (-1.4 - targetParts.armRGroup.rotation.x) * 0.2;
+        }
+
+        if (!disabled.legL) {
+          targetParts.legLGroup.rotation.x = -c;
+          targetParts.legLUpper.rotation.x = -0.3 * c;
+          targetParts.legLLower.rotation.x = -0.6 * c;
+        } else {
+          targetParts.legLGroup.rotation.x += (0.9 - targetParts.legLGroup.rotation.x) * 0.2;
+        }
+
+        if (!disabled.legR) {
+          targetParts.legRGroup.rotation.x = c;
+          targetParts.legRUpper.rotation.x = 0.3 * c;
+          targetParts.legRLower.rotation.x = 0.6 * c;
+        } else {
+          targetParts.legRGroup.rotation.x += (0.9 - targetParts.legRGroup.rotation.x) * 0.2;
+        }
+
+        if (crawling) {
+          targetParts.armLGroup.rotation.x = s * 0.5;
+          targetParts.armRGroup.rotation.x = -s * 0.5;
+          targetParts.armLUpper.rotation.x = 0.5 + s * 0.3;
+          targetParts.armLLower.rotation.x = 0.8 + s * 0.4;
+          targetParts.armRUpper.rotation.x = 0.5 - s * 0.3;
+          targetParts.armRLower.rotation.x = 0.8 - s * 0.4;
+
+          targetParts.legLGroup.rotation.x = 0.4;
+          targetParts.legRGroup.rotation.x = 0.4;
+          targetParts.legLUpper.rotation.x = 1.2;
+          targetParts.legLLower.rotation.x = 1.4;
+          targetParts.legRUpper.rotation.x = 1.2;
+          targetParts.legRLower.rotation.x = 1.4;
+        }
+      }
+
+      function updatePlayerAnim(dt, moveSpeed) {
+        if (!playerParts) return;
+        const speedScale = moveSpeed > 0 ? 1 : 0.3;
+        player.animT += dt * 6 * (moveSpeed > 0 ? 1 : 0.6);
+        applyWalkAnimation(playerParts, player.disabled, player.crawling, player.animT, speedScale);
+      }
+
+      function updateNPCs(dt) {
+        for (const npc of npcs) {
+          if (!npc.userData.alive) continue;
+
+          if (npc.userData.dying) {
+            npc.userData.dyingTimer -= dt;
+            if (npc.userData.dyingTimer <= 0) {
+              killNPC(
+                npc,
+                npc.position,
+                npc.userData.dir,
+                npc.userData.neckDying ? 'neck' : 'torso',
+                npc.userData.neckDying
+              );
+              continue;
+            }
+
+            if (npc.userData.leaking > 0) {
+              npc.userData.leakTimer -= dt;
+              if (npc.userData.leakTimer <= 0) {
+                npc.userData.leakTimer = 0.1 + Math.random() * 0.2;
+                const leakPos = npc.position.clone();
+                leakPos.y += 1.1 + (Math.random() - 0.5) * 0.8;
+                spawnParticles(
+                  leakPos,
+                  0x6b0a0a,
+                  2,
+                  2,
+                  1,
+                  1,
+                  0.02,
+                  0.02,
+                  1,
+                  false
+                );
+              }
+              npc.userData.leaking -= dt;
+              if (npc.userData.leaking <= 0) npc.userData.leaking = 0;
+            }
+
+            if (npc.userData.spewing > 0) {
+              npc.userData.spewTimer -= dt;
+              if (npc.userData.spewTimer <= 0) {
+                npc.userData.spewTimer = 0.1 + Math.random() * 0.2;
+                const throatPos = new THREE.Vector3();
+                npc.children[0].userData.parts.neck.getWorldPosition(throatPos);
+                const forward = new THREE.Vector3(
+                  Math.sin(npc.rotation.y),
+                  0,
+                  Math.cos(npc.rotation.y)
+                );
+                throatPos.add(forward.multiplyScalar(0.15));
+                const baseVel = forward.multiplyScalar(3);
+                spawnParticles(
+                  throatPos,
+                  0x6b0a0a,
+                  3,
+                  3,
+                  1,
+                  2,
+                  0.02,
+                  0.03,
+                  1,
+                  false,
+                  baseVel
+                );
+              }
+              npc.userData.spewing -= dt;
+              if (npc.userData.spewing <= 0) npc.userData.spewing = 0;
+            }
+          }
+
+          const toPlayer = camera.position.clone().sub(npc.position);
+          toPlayer.y = 0;
+          const distToPlayer = toPlayer.length();
+
+          if (npc.userData.hostile && playerAggro && !npc.userData.dying && !npc.userData.crawling) {
+            if (distToPlayer > 1e-3) {
+              npc.userData.dir.copy(toPlayer.normalize());
+            }
+          } else if (!npc.userData.crawling && !npc.userData.dying) {
+            npc.userData.turnTimer -= dt;
+            if (npc.userData.turnTimer <= 0) {
+              npc.userData.turnTimer = 1 + Math.random() * 2.5;
+              const angle = (Math.random() - 0.5) * Math.PI * 0.5;
+              npc.userData.dir
+                .applyAxisAngle(new THREE.Vector3(0, 1, 0), angle)
+                .normalize();
+            }
+          }
+
+          const p = npc.position;
+          if (Math.abs(p.x) > npcBounds) npc.userData.dir.x *= -1;
+          if (Math.abs(p.z) > npcBounds) npc.userData.dir.z *= -1;
+          p.addScaledVector(npc.userData.dir, npc.userData.speed * dt);
+          npc.rotation.y = Math.atan2(npc.userData.dir.x, npc.userData.dir.z);
+
+          if (npc.userData.hostile && playerAggro && !npc.userData.dying) {
+            npc.userData.shootTimer -= dt;
+            if (npc.userData.shootTimer <= 0 && distToPlayer < 120) {
+              hostileFire(npc);
+              npc.userData.shootTimer = 0.8 + Math.random() * 0.6;
+            }
+          }
+
+          const parts = npc.children[0].userData.parts;
+          npc.userData.animT += dt * 6 * npc.userData.speed;
+          applyWalkAnimation(parts, npc.userData.disabled, npc.userData.crawling, npc.userData.animT, 1);
+        }
+      }
+
+      // Structures
+      function markStructureMesh(mesh) {
+        mesh.userData = mesh.userData || {};
+        mesh.userData.structure = true;
+        structureMeshes.push(mesh);
+      }
+
+      function addBoxStructure(pos, size, color = 0x666666) {
+        const geo = new THREE.BoxGeometry(size.x, size.y, size.z);
+        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.position.copy(pos);
+        scene.add(mesh);
+
+        markStructureMesh(mesh);
+
+        const shape = new CANNON.Box(
+          new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2)
+        );
+        const body = new CANNON.Body({ mass: 0, shape });
+        body.position.set(pos.x, pos.y, pos.z);
+        world.addBody(body);
+      }
+
+      function addBarrel(pos, radius = 0.4, height = 1.0, color = 0x444444) {
+        const geo = new THREE.CylinderGeometry(radius, radius, height, 16);
+        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.1 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.position.copy(pos);
+        scene.add(mesh);
+
+        markStructureMesh(mesh);
+
+        const shape = new CANNON.Cylinder(radius, radius, height, 12);
+        const body = new CANNON.Body({ mass: 0, shape });
+        body.position.set(pos.x, pos.y, pos.z);
+        world.addBody(body);
+      }
+
+      function addShelter(center) {
+        const postHeight = 2.2;
+        const postGeo = new THREE.BoxGeometry(0.2, postHeight, 0.2);
+        const postMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
+
+        const offsets = [
+          new THREE.Vector3(-1.3, postHeight / 2, -1.3),
+          new THREE.Vector3(1.3, postHeight / 2, -1.3),
+          new THREE.Vector3(-1.3, postHeight / 2, 1.3),
+          new THREE.Vector3(1.3, postHeight / 2, 1.3)
+        ];
+
+        offsets.forEach(off => {
+          const mesh = new THREE.Mesh(postGeo, postMat);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.position.copy(center).add(off);
+          scene.add(mesh);
+          markStructureMesh(mesh);
+
+          const shape = new CANNON.Box(new CANNON.Vec3(0.1, postHeight / 2, 0.1));
+          const body = new CANNON.Body({ mass: 0, shape });
+          body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
+          world.addBody(body);
+        });
+
+        const roofGeo = new THREE.BoxGeometry(3.2, 0.2, 3.2);
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+        const roof = new THREE.Mesh(roofGeo, roofMat);
+        roof.castShadow = true;
+        roof.receiveShadow = true;
+        roof.position.set(center.x, center.y + postHeight + 0.1, center.z);
+        scene.add(roof);
+        markStructureMesh(roof);
+
+        const roofShape = new CANNON.Box(new CANNON.Vec3(1.6, 0.1, 1.6));
+        const roofBody = new CANNON.Body({ mass: 0, shape: roofShape });
+        roofBody.position.set(roof.position.x, roof.position.y, roof.position.z);
+        world.addBody(roofBody);
+      }
+
+      function buildStructures() {
+        for (let i = 0; i < 10; i++) {
+          const pos = new THREE.Vector3(
+            (Math.random() - 0.5) * 120,
+            0.5,
+            (Math.random() - 0.5) * 120
+          );
+          const size = new THREE.Vector3(
+            1 + Math.random(),
+            1 + Math.random(),
+            1 + Math.random()
+          );
+          addBoxStructure(pos, size, 0x7a5b3a);
+        }
+
+        for (let i = 0; i < 8; i++) {
+          const pos = new THREE.Vector3(
+            (Math.random() - 0.5) * 120,
+            0.5,
+            (Math.random() - 0.5) * 120
+          );
+          addBarrel(pos, 0.35 + Math.random() * 0.1, 1.1, 0x555555);
+        }
+
+        const shelterCenters = [
+          new THREE.Vector3(15, 0, 15),
+          new THREE.Vector3(-20, 0, 10),
+          new THREE.Vector3(10, 0, -25),
+          new THREE.Vector3(-25, 0, -15)
+        ];
+        shelterCenters.forEach(c => addShelter(c));
+      }
+
+      // Spawn NPCs
+      const COUNT = 18;
+      const HOSTILE_COUNT = 8;
+
+      for (let i = 0; i < COUNT; i++) {
+        spawnNPC((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
+      }
+      for (let i = 0; i < HOSTILE_COUNT; i++) {
+        spawnHostileNPC((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200);
+      }
+
+      document.getElementById('npcCount').textContent = (COUNT + HOSTILE_COUNT).toString();
+
+      buildStructures();
+
+      // Main loop
+      const clock = new THREE.Clock();
+      const fixedTimeStep = 1 / 120;
+      let physicsAcc = 0;
+
+      function animate() {
+        const dt = Math.min(0.033, clock.getDelta());
+        if (shootTimer > 0) shootTimer -= dt;
+
+        updatePlayer(dt);
+        updateNPCs(dt);
+        updateBullets(dt);
+        updateBlood(dt);
+        updatePlayerDamageEffects(dt);
+
+        physicsAcc += dt;
+        while (physicsAcc >= fixedTimeStep) {
+          world.step(fixedTimeStep);
+          physicsAcc -= fixedTimeStep;
+        }
+
+        for (const body of world.bodies) {
+          if (body.mesh) {
+            body.mesh.position.copy(body.position);
+            body.mesh.quaternion.copy(body.quaternion);
+          }
+        }
+
+        for (const rag of ragdolls) {
+          if (rag.leaking > 0) {
+            rag.leakTimer -= dt;
+            if (rag.leakTimer <= 0) {
+              rag.leakTimer = 0.1 + Math.random() * 0.2;
+              const leakPos = rag.bodies.torso.mesh.position.clone();
+              leakPos.y += (Math.random() - 0.5) * 0.8;
+              spawnParticles(
+                leakPos,
+                0x6b0a0a,
+                2,
+                2,
+                1,
+                1,
+                0.02,
+                0.02,
+                1,
+                false
+              );
+            }
+            rag.leaking -= dt;
+            if (rag.leaking <= 0) rag.leaking = 0;
+          }
+        }
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Sources</title>
+<style>
+  body {
+    margin: 0;
+    background: #0d0d1a;
+    color: white;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: relative;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #12122a;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  header button {
+    background: none;
+    border: none;
+    color: #0a84ff;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex: 1;
+    overflow-y: auto;
+  }
+  li {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    position: relative;
+    transition: transform 0.2s ease;
+  }
+  li .delete {
+    position: absolute;
+    right: -80px;
+    top: 0;
+    height: 100%;
+    width: 80px;
+    background: #ff3b30;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 600;
+  }
+  #resetBtn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #ff3b30;
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  }
+  #resetBtn:hover {
+    background: #ff4d40;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <button id="breadcrumb">Back</button>
+    <div style="font-weight:600;">Sources</div>
+    <button id="editBtn">Edit</button>
+  </header>
+  <ul id="sourceList"></ul>
+  <button id="resetBtn">Reset to Default</button>
+
+<script>
+const defaultSourcesURL = "https://p.mekabrine.space/ipas/big.json";
+
+let defaultSources = [];
+let sources = [];
+let editing = false;
+
+const list = document.getElementById("sourceList");
+const editBtn = document.getElementById("editBtn");
+const breadcrumb = document.getElementById("breadcrumb");
+const resetBtn = document.getElementById("resetBtn");
+
+// Fetch default sources dynamically
+async function loadDefaultSources() {
+  try {
+    const res = await fetch(defaultSourcesURL, { cache: "no-store" });
+    const text = await res.text();
+
+    // The file includes a JS variable declaration, so we extract its array
+    const match = text.match(/\[(.|\s)*\]/);
+    if (match) {
+      defaultSources = JSON.parse(match[0]);
+    } else {
+      throw new Error("Invalid format in default-sources.json");
+    }
+
+    sources = JSON.parse(localStorage.getItem("sources")) || defaultSources;
+    render();
+  } catch (err) {
+    console.error("Failed to load default sources:", err);
+    // fallback
+    defaultSources = [];
+    sources = JSON.parse(localStorage.getItem("sources")) || [];
+    render();
+  }
+}
+
+function render() {
+  list.innerHTML = "";
+  sources.forEach((src, i) => {
+    const li = document.createElement("li");
+    li.textContent = src;
+    if (editing) {
+      const del = document.createElement("div");
+      del.className = "delete";
+      del.textContent = "Delete";
+      del.addEventListener("click", () => {
+        sources.splice(i, 1);
+        save();
+      });
+      li.appendChild(del);
+
+      let startX = 0;
+      li.addEventListener("touchstart", e => startX = e.touches[0].clientX);
+      li.addEventListener("touchmove", e => {
+        const diff = e.touches[0].clientX - startX;
+        if (diff < -30) li.style.transform = "translateX(-80px)";
+        else li.style.transform = "translateX(0)";
+      });
+    }
+    list.appendChild(li);
+  });
+  resetBtn.style.display = editing ? "block" : "none";
+}
+
+function save() {
+  localStorage.setItem("sources", JSON.stringify(sources));
+  render();
+}
+
+editBtn.addEventListener("click", () => {
+  if (!editing) {
+    editing = true;
+    breadcrumb.textContent = "Done";
+    editBtn.textContent = "+";
+  } else if (editBtn.textContent === "+") {
+    const url = prompt("Enter source URL:");
+    if (url && !sources.includes(url)) {
+      sources.push(url);
+      save();
+    }
+  }
+  render();
+});
+
+breadcrumb.addEventListener("click", () => {
+  if (breadcrumb.textContent === "Done") {
+    editing = false;
+    breadcrumb.textContent = "Back";
+    editBtn.textContent = "Edit";
+    render();
+  } else {
+    window.location.href = "https://p.mekabrine.space/ipas/";
+  }
+});
+
+resetBtn.addEventListener("click", () => {
+  const confirmMsg =
+    "Are you sure you want to reset to the default sources?\n\n" +
+    "The default sources are loaded from:\n" + defaultSourcesURL;
+  if (confirm(confirmMsg)) {
+    sources = [...defaultSources];
+    save();
+  }
+});
+
+loadDefaultSources();
+</script>
+</body>
+</html>

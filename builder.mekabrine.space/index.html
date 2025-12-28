@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Advanced Drag & Drop Builder</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --light-bg: #f8fafc;
+      --panel-bg: #ffffffcc;
+      --border: #d1d5db;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      --radius: 10px;
+    }
+
+    body {
+      margin: 0;
+      display: flex;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      background: #f1f5f9;
+      color: #111827;
+    }
+
+    /* --- TOP BAR --- */
+    #topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--panel-bg);
+      backdrop-filter: blur(10px);
+      padding: 8px 12px;
+      display: flex;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      z-index: 10000;
+      box-shadow: var(--shadow);
+    }
+
+    #topbar button {
+      background: var(--primary);
+      border: none;
+      color: white;
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s ease;
+    }
+
+    #topbar button:hover {
+      background: #1e40af;
+    }
+
+    /* --- TOOLBAR --- */
+    #toolbar {
+      position: fixed;
+      top: 48px;
+      left: 0;
+      width: 220px;
+      background: var(--panel-bg);
+      border-right: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      border-top-right-radius: var(--radius);
+      height: calc(100vh - 48px);
+      overflow-y: auto;
+    }
+
+    .draggable {
+      background: #e5e7eb;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      border-radius: var(--radius);
+      text-align: center;
+      cursor: grab;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    .draggable:hover {
+      background: #dbeafe;
+      color: var(--primary);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-top: 14px;
+    }
+
+    .tabs button {
+      flex: 1;
+      border: none;
+      background: #e5e7eb;
+      padding: 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .tabs button.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* --- CANVAS --- */
+    #canvasWrapper {
+      margin-top: 48px;
+      margin-left: 220px;
+      flex: 1;
+      height: calc(100vh - 48px);
+      overflow: auto;
+      background: var(--light-bg);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+    }
+
+    #canvas {
+      position: relative;
+      border: 2px dashed #94a3b8;
+      width: 1000px;
+      height: 800px;
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .canvas-element {
+      position: absolute;
+      border: 1px dashed #94a3b8;
+      resize: both;
+      overflow: auto;
+      cursor: move;
+      font-size: 16px;
+      border-radius: 6px;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .canvas-element:focus,
+    .canvas-element:hover {
+      box-shadow: 0 0 0 2px var(--primary);
+      outline: none;
+    }
+
+    /* --- PROPERTIES PANEL --- */
+    #propertiesPanel {
+      position: fixed;
+      right: 0;
+      top: 48px;
+      width: 320px;
+      height: calc(100vh - 48px);
+      background: var(--panel-bg);
+      border-left: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-top-left-radius: var(--radius);
+      display: none;
+      flex-direction: column;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+    }
+
+    #propertiesHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: #f1f5f9;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    #propertiesHeader button {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: #6b7280;
+    }
+
+    #propertiesContent {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    #propertiesContent input,
+    #propertiesContent select {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+    }
+
+    #deleteBtn {
+      margin: 10px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #deleteBtn:hover {
+      background: #dc2626;
+    }
+
+    /* --- SCRIPTS --- */
+    #scriptToolbar {
+      position: fixed;
+      top: 48px;
+      left: 220px;
+      right: 320px;
+      padding: 10px;
+      background: var(--panel-bg);
+      display: none;
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    #scriptsPanel {
+      position: fixed;
+      top: 88px;
+      left: 220px;
+      right: 320px;
+      bottom: 0;
+      background: var(--light-bg);
+      display: none;
+      overflow: auto;
+      padding: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    #scriptList {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    #scriptList li {
+      padding: 8px 10px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      border-radius: var(--radius);
+      margin-bottom: 6px;
+      border: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+
+    #scriptList li.selected {
+      background: #dbeafe;
+      border-color: var(--primary);
+    }
+
+    #scriptList li:hover {
+      background: #f3f4f6;
+    }
+
+    /* --- PREVIEW --- */
+    #previewLayer {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 9998;
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    #previewFrame {
+      width: 90%;
+      height: 90%;
+      border: none;
+      margin: 5vh auto;
+      display: block;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    #closePreview {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      background: #ef4444;
+      color: white;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+
+    /* --- ELEMENTS --- */
+    .shape {
+      background: #cbd5e1;
+      width: 100px;
+      height: 100px;
+      border-radius: var(--radius);
+    }
+
+    .switch {
+      width: 60px;
+      height: 34px;
+      position: relative;
+      display: inline-block;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar"><button id="exportBtn">Export HTML</button><button id="previewBtn">Preview</button></div>
+  <div id="toolbar">
+    <div class="draggable" draggable="true" data-type="button">Button</div>
+    <div class="draggable" draggable="true" data-type="text">Text</div>
+    <div class="draggable" draggable="true" data-type="image">Image</div>
+    <div class="draggable" draggable="true" data-type="input">Input</div>
+    <div class="draggable" draggable="true" data-type="checkbox">Checkbox</div>
+    <div class="draggable" draggable="true" data-type="switch">Switch</div>
+    <div class="draggable" draggable="true" data-type="video">Video</div>
+    <div class="draggable" draggable="true" data-type="shape" data-shape="rectangle">Rectangle</div>
+    <div class="draggable" draggable="true" data-type="shape" data-shape="circle">Circle</div>
+    <div class="tabs">
+      <button data-tab="elements" class="active">Elements</button>
+      <button data-tab="scripting">Scripting</button>
+    </div>
+  </div>
+
+  <div id="canvasWrapper"><div id="canvas" onclick="selectCanvas()" ondragover="event.preventDefault()" ondrop="handleDrop(event)"></div></div>
+
+  <div id="propertiesPanel">
+    <div id="propertiesHeader"><span id="propTitle"></span><button id="closeProps">×</button></div>
+    <div id="propertiesContent"></div>
+    <button id="deleteBtn">Delete</button>
+  </div>
+
+  <div id="scriptToolbar"><button id="newScriptBtn">New Script</button></div>
+  <div id="scriptsPanel"><ul id="scriptList"></ul><div id="scriptProps"></div></div>
+
+  <div id="previewLayer"><iframe id="previewFrame"></iframe><button id="closePreview">×</button></div>
+
+<script>
+let selectedElement=null,offsetX,offsetY;
+const scripts=[],canvas=document.getElementById('canvas'),
+panel=document.getElementById('propertiesPanel'),
+propContent=document.getElementById('propertiesContent'),
+propTitle=document.getElementById('propTitle'),
+deleteBtn=document.getElementById('deleteBtn'),
+closeProps=document.getElementById('closeProps'),
+previewLayer=document.getElementById('previewLayer'),
+previewFrame=document.getElementById('previewFrame'),
+closePreview=document.getElementById('closePreview'),
+newScriptBtn=document.getElementById('newScriptBtn'),
+scriptToolbar=document.getElementById('scriptToolbar'),
+scriptsPanel=document.getElementById('scriptsPanel'),
+scriptList=document.getElementById('scriptList'),
+scriptProps=document.getElementById('scriptProps'),
+tabs=document.querySelectorAll('.tabs button');
+
+function generateScriptCode() {
+  let js = '<script>\n';
+  
+  scripts.forEach(script => {
+    const target = script.target === 'canvas' ? 'document.getElementById("canvas")' : `document.getElementById("${script.target}")`;
+    
+    switch(script.trigger) {
+      case 'on page load':
+        js += `window.addEventListener('load', function() {\n`;
+        break;
+      case 'on click':
+        js += `${target}.addEventListener('click', function(e) {\n`;
+        break;
+      case 'on hover':
+        js += `${target}.addEventListener('mouseover', function(e) {\n`;
+        break;
+    }
+    
+    script.actions.forEach(action => {
+      switch(action.type) {
+        case 'open':
+          js += `  window.open("${action.value.replace(/"/g, '\\"')}");\n`;
+          break;
+        case 'show':
+          js += `  document.getElementById("${action.value}").style.display = '';\n`;
+          break;
+        case 'hide':
+          js += `  document.getElementById("${action.value}").style.display = 'none';\n`;
+          break;
+        case 'toggle':
+          js += `  const el${action.value.replace(/[^a-zA-Z0-9]/g, '')} = document.getElementById("${action.value}");\n`;
+          js += `  el${action.value.replace(/[^a-zA-Z0-9]/g, '')}.style.display = el${action.value.replace(/[^a-zA-Z0-9]/g, '')}.style.display === 'none' ? '' : 'none';\n`;
+          break;
+        case 'alert':
+          js += `  alert("${action.value.replace(/"/g, '\\"')}");\n`;
+          break;
+        case 'change_property':
+          js += `  document.getElementById("${action.target}").${action.property} = "${action.value.replace(/"/g, '\\"')}";\n`;
+          break;
+      }
+    });
+    
+    js += '});\n';
+  });
+  
+  js += '<\/script>\n';
+  return js;
+}
+
+tabs.forEach(btn=>btn.onclick=e=>{
+  tabs.forEach(b=>b.classList.toggle('active',b===btn));
+  const t=btn.dataset.tab;
+  document.getElementById('canvasWrapper').style.display=t==='elements'?'block':'none';
+  scriptToolbar.style.display=t==='scripting'?'block':'none';
+  scriptsPanel.style.display=t==='scripting'?'block':'none';
+});
+
+document.getElementById('exportBtn').onclick=exportHTML;
+document.getElementById('previewBtn').onclick=preview;
+closePreview.onclick=()=>previewLayer.style.display='none';
+closeProps.onclick=()=>panel.style.display='none';
+deleteBtn.onclick=()=>{if(selectedElement){selectedElement.remove();panel.style.display='none';selectedElement=null;}};
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Backspace'&&selectedElement&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA') deleteBtn.click();
+});
+
+document.querySelectorAll('.draggable').forEach(el=>el.addEventListener('dragstart',e=>{
+  e.dataTransfer.setData('type',e.target.dataset.type);
+  if(e.target.dataset.shape) e.dataTransfer.setData('shape',e.target.dataset.shape);
+}));
+
+function handleDrop(e){
+  const type=e.dataTransfer.getData('type'),x=e.offsetX,y=e.offsetY;
+  let newEl;
+  if(type==='text'){newEl=document.createElement('div');newEl.innerText='Text'}
+  if(type==='button'){newEl=document.createElement('button');newEl.innerText='Button'}
+  if(type==='image'){newEl=document.createElement('img');newEl.src=prompt('Image URL')}
+  if(type==='input'){newEl=document.createElement('input');newEl.type='text';newEl.placeholder='Input text'}
+  if(type==='checkbox'){newEl=document.createElement('input');newEl.type='checkbox';newEl.style.width='auto';newEl.style.height='auto'}
+  if(type==='switch'){
+    newEl=document.createElement('label');
+    newEl.className='switch';
+    newEl.innerHTML='<input type="checkbox"><span class="slider"></span>';
+  }
+  if(type==='video'){
+    newEl=document.createElement('video');
+    newEl.src=prompt('Video URL');
+    newEl.controls=true;
+    newEl.style.width='300px';
+    newEl.style.height='auto';
+  }
+  if(type==='shape'){
+    const shape=e.dataTransfer.getData('shape');
+    newEl=document.createElement('div');
+    newEl.className='shape';
+    if(shape==='circle') newEl.style.borderRadius='50%';
+    newEl.style.width='100px';
+    newEl.style.height='100px';
+    newEl.style.backgroundColor='#ccc';
+  }
+  if(newEl){
+    newEl.className='canvas-element';
+    newEl.style.left=x+'px';newEl.style.top=y+'px';
+    if(!newEl.style.width) newEl.style.width='200px';
+    if(!newEl.style.height && type !== 'switch') newEl.style.height='auto';
+    newEl.style.fontSize='16px';
+    newEl.id=type+'_'+Math.floor(10000+Math.random()*90000);
+    newEl.onclick=e=>{e.stopPropagation();selectElement(newEl)};
+    newEl.onmousedown=dragStart;
+    canvas.append(newEl);
+    selectElement(newEl);
+  }
+}
+
+function dragStart(e){offsetX=e.offsetX;offsetY=e.offsetY;document.onmousemove=dragMove;document.onmouseup=dragEnd}
+function dragMove(e){if(selectedElement){selectedElement.style.left=e.pageX-canvas.offsetLeft-offsetX+'px';selectedElement.style.top=e.pageY-canvas.offsetTop-offsetY+'px'}}
+function dragEnd(){document.onmousemove=null;document.onmouseup=null}
+
+function selectCanvas(){
+  selectedElement=null;
+  panel.style.display='flex';
+  propTitle.textContent='Canvas';
+  propContent.innerHTML=
+`<label>Width</label><input type="text" value="${canvas.style.width||canvas.offsetWidth+'px'}" onchange="canvas.style.width=this.value">
+<label>Height</label><input type="text" value="${canvas.style.height||canvas.offsetHeight+'px'}" onchange="canvas.style.height=this.value">
+<label>Background</label><input type="color" value="${rgb2hex(getComputedStyle(canvas).backgroundColor)}" onchange="canvas.style.background=this.value">`;
+  deleteBtn.disabled=true;
+}
+
+function selectElement(el){
+  selectedElement=el;
+  panel.style.display='flex';
+  propTitle.textContent=`${el.tagName.toLowerCase()} — ${el.id}`;
+  deleteBtn.disabled=false;
+  let html=
+`<label>ID</label><input type="text" value="${el.id}" onchange="selectedElement.id=this.value">
+<label>Left</label><input type="text" value="${el.style.left}" onchange="selectedElement.style.left=this.value">
+<label>Top</label><input type="text" value="${el.style.top}" onchange="selectedElement.style.top=this.value">
+<label>Width</label><input type="text" value="${el.style.width}" onchange="selectedElement.style.width=this.value">
+<label>Height</label><input type="text" value="${el.style.height}" onchange="selectedElement.style.height=this.value">
+<label>Font Size</label><input type="text" value="${el.style.fontSize||''}" onchange="selectedElement.style.fontSize=this.value">
+<label>Color</label><input type="color" value="${rgb2hex(getComputedStyle(el).color)}" onchange="selectedElement.style.color=this.value">`;
+  
+  if(el.tagName==='BUTTON'||el.tagName==='DIV'||el.tagName==='LABEL') {
+    if(el.tagName==='LABEL' && el.classList.contains('switch')) {
+      // Skip text input for switches
+    } else {
+      html+=`<label>Text</label><input type="text" value="${el.innerText}" onchange="selectedElement.innerText=this.value">`;
+    }
+  }
+  if(el.tagName==='IMG'){
+    html+=`<label>Src</label><input type="text" value="${el.src}" onchange="selectedElement.src=this.value">`;
+  }
+  if(el.tagName==='INPUT'){
+    if(el.type==='text'){
+      html+=`<label>Placeholder</label><input type="text" value="${el.placeholder}" onchange="selectedElement.placeholder=this.value">`;
+      html+=`<label>Value</label><input type="text" value="${el.value}" onchange="selectedElement.value=this.value">`;
+    }
+    if(el.type==='checkbox'){
+      html+=`<label>Checked</label><input type="checkbox" ${el.checked?'checked':''} onchange="selectedElement.checked=this.checked">`;
+    }
+  }
+  if(el.tagName==='VIDEO'){
+    html+=`<label>Src</label><input type="text" value="${el.src}" onchange="selectedElement.src=this.value">`;
+    html+=`<label>Controls</label><input type="checkbox" ${el.controls?'checked':''} onchange="selectedElement.controls=this.checked">`;
+  }
+  if(el.classList.contains('shape')){
+    html+=`<label>Background Color</label><input type="color" value="${rgb2hex(getComputedStyle(el).backgroundColor)}" onchange="selectedElement.style.backgroundColor=this.value">`;
+    if(el.style.borderRadius==='50%'){
+      html+=`<label>Shape</label><select onchange="selectedElement.style.borderRadius=this.value==='circle'?'50%':'0'">
+        <option value="circle" selected>Circle</option>
+        <option value="rectangle">Rectangle</option>
+      </select>`;
+    }else{
+      html+=`<label>Shape</label><select onchange="selectedElement.style.borderRadius=this.value==='circle'?'50%':'0'">
+        <option value="circle">Circle</option>
+        <option value="rectangle" selected>Rectangle</option>
+      </select>`;
+    }
+  }
+  propContent.innerHTML=html;
+}
+
+function rgb2hex(rgb){
+  const m=rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+  return m? "#"+m.slice(1).map(x=>("0"+parseInt(x).toString(16)).slice(-2)).join(""):rgb;
+}
+
+function exportHTML(){
+  const bg=canvas.style.background||'#fff';
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${document.title}</title>
+<style>.canvas-element{position:absolute;}#canvas{background:${bg};position:relative;width:${canvas.style.width||canvas.offsetWidth+'px'};height:${canvas.style.height||canvas.offsetHeight+'px'}}
+.switch{width:60px;height:34px;position:relative;display:inline-block}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;transition:.4s;border-radius:34px}
+.slider:before{position:absolute;content:"";height:26px;width:26px;left:4px;bottom:4px;background-color:white;transition:.4s;border-radius:50%}
+input:checked+.slider{background-color:#2196F3}
+input:checked+.slider:before{transform:translateX(26px)}
+</style>
+</head><body>${canvas.outerHTML}${generateScriptCode()}</body></html>`;
+  const a=document.createElement('a'),blob=new Blob([html],{type:'text/html'});
+  a.href=URL.createObjectURL(blob);a.download='exported.html';a.click();
+}
+
+function preview(){
+  previewLayer.style.display='block';
+  const bg=canvas.style.background||'#fff';
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Preview</title>
+<style>.canvas-element{position:absolute;}#canvas{background:${bg};position:relative;width:${canvas.style.width||canvas.offsetWidth+'px'};height:${canvas.style.height||canvas.offsetHeight+'px'}}
+.switch{width:60px;height:34px;position:relative;display:inline-block}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;transition:.4s;border-radius:34px}
+.slider:before{position:absolute;content:"";height:26px;width:26px;left:4px;bottom:4px;background-color:white;transition:.4s;border-radius:50%}
+input:checked+.slider{background-color:#2196F3}
+input:checked+.slider:before{transform:translateX(26px)}
+</style>
+</head><body>${canvas.outerHTML}${generateScriptCode()}</body></html>`;
+  previewFrame.src=URL.createObjectURL(new Blob([html],{type:'text/html'}));
+}
+
+newScriptBtn.onclick=()=>{
+  panel.style.display='flex';
+  propTitle.textContent='New Script';
+  let html=
+`<label>Trigger</label>
+<select id="trigType">
+  <option value="on page load">On page load</option>
+  <option value="on click">On element clicked</option>
+  <option value="on hover">On element hovered</option>
+</select>
+<label>Target</label><select id="trigTarget"></select>
+<button id="createScript">Create</button>`;
+  propContent.innerHTML=html;
+  const sel=document.getElementById('trigTarget');
+  const opts=[{id:'canvas',text:'Canvas'},...Array.from(canvas.querySelectorAll('.canvas-element')).map(el=>({id:el.id,text:el.id}))];
+  opts.forEach(o=>sel.add(new Option(o.text,o.id)));
+  document.getElementById('createScript').onclick=e=>{
+    const t=document.getElementById('trigType').value;
+    const tgt=document.getElementById('trigTarget').value;
+    scripts.push({trigger:t,target:tgt,actions:[]});
+    refreshScripts();
+    panel.style.display='none';
+  };
+}
+
+function refreshScripts(){
+  scriptList.innerHTML='';
+  scripts.forEach((s,i)=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<span>${s.trigger} → ${s.target}</span><button class="deleteScript" data-index="${i}">×</button>`;
+    li.onclick=()=>editScript(i);
+    li.querySelector('.deleteScript').onclick=e=>{
+      e.stopPropagation();
+      scripts.splice(i,1);
+      refreshScripts();
+      panel.style.display='none';
+    };
+    scriptList.appendChild(li);
+  });
+}
+
+function editScript(idx){
+  scriptList.querySelectorAll('li').forEach((li,i)=>li.classList.toggle('selected',i===idx));
+  const s=scripts[idx];
+  panel.style.display='flex';
+  propTitle.textContent='Edit Script';
+  let html=`<label>Trigger & Target</label>
+<select id="editTrigType">
+  <option value="on page load" ${s.trigger==='on page load'?'selected':''}>On page load</option>
+  <option value="on click" ${s.trigger==='on click'?'selected':''}>On element clicked</option>
+  <option value="on hover" ${s.trigger==='on hover'?'selected':''}>On element hovered</option>
+</select>
+<select id="editTrigTarget"></select>
+<h4>Actions</h4><div id="acts"></div>
+<button id="addAct">+ Add action</button>`;
+  propContent.innerHTML=html;
+  const selT=document.getElementById('editTrigTarget');
+  const opts2=scripts[idx].trigger==='on page load'?[{id:'canvas',text:'Canvas'}]:Array.from(canvas.querySelectorAll('.canvas-element')).map(el=>({id:el.id,text:el.id}));
+  opts2.forEach(o=>selT.add(new Option(o.text,o.id)));
+  selT.value=s.target;
+  document.getElementById('editTrigType').onchange=e=>s.trigger=e.target.value;
+  selT.onchange=e=>s.target=e.target.value;
+  const actsDiv=document.getElementById('acts');
+  function redrawActs(){
+    actsDiv.innerHTML='';
+    s.actions.forEach((a,ai)=>{
+      const w=document.createElement('div');
+      
+      if(a.type === 'change_property') {
+        w.innerHTML=`<select class="atype">
+          <option value="open">Open URL</option>
+          <option value="show">Show element</option>
+          <option value="hide">Hide element</option>
+          <option value="toggle">Toggle element</option>
+          <option value="alert">Alert</option>
+          <option value="change_property" selected>Change element property</option>
+        </select>
+        <select class="change-target">
+          ${Array.from(canvas.querySelectorAll('.canvas-element')).map(el=>`<option value="${el.id}" ${a.target===el.id?'selected':''}>${el.id}</option>`).join('')}
+        </select>
+        <select class="change-property">
+          <option value="value" ${a.property==='value'?'selected':''}>Value</option>
+          <option value="style.width" ${a.property==='style.width'?'selected':''}>Width</option>
+          <option value="style.height" ${a.property==='style.height'?'selected':''}>Height</option>
+          <option value="style.left" ${a.property==='style.left'?'selected':''}>Left</option>
+          <option value="style.top" ${a.property==='style.top'?'selected':''}>Top</option>
+          <option value="style.fontSize" ${a.property==='style.fontSize'?'selected':''}>Font Size</option>
+          <option value="style.color" ${a.property==='style.color'?'selected':''}>Color</option>
+          <option value="style.backgroundColor" ${a.property==='style.backgroundColor'?'selected':''}>Background Color</option>
+        </select>
+        <input class="aval" placeholder="value" value="${a.value||''}">
+        <button class="remAct">×</button>`;
+      } else {
+        w.innerHTML=`<select class="atype">
+          <option value="open" ${a.type==='open'?'selected':''}>Open URL</option>
+          <option value="show" ${a.type==='show'?'selected':''}>Show element</option>
+          <option value="hide" ${a.type==='hide'?'selected':''}>Hide element</option>
+          <option value="toggle" ${a.type==='toggle'?'selected':''}>Toggle element</option>
+          <option value="alert" ${a.type==='alert'?'selected':''}>Alert</option>
+          <option value="change_property" ${a.type==='change_property'?'selected':''}>Change element property</option>
+        </select>
+        <input class="aval" placeholder="value" value="${a.value||''}" style="display:${a.type==='open'||a.type==='alert'||a.type==='show'||a.type==='hide'||a.type==='toggle'?'inline':'none'}">
+        <button class="remAct">×</button>`;
+      }
+      
+      actsDiv.appendChild(w);
+      
+      w.querySelector('.atype').onchange=e=>{
+        a.type=e.target.value;
+        if(a.type === 'change_property') {
+          a.target = canvas.querySelector('.canvas-element')?.id || '';
+          a.property = 'value';
+          a.value = '';
+        }
+        redrawActs();
+      };
+      
+      if(w.querySelector('.change-target')) {
+        w.querySelector('.change-target').onchange=e=>a.target=e.target.value;
+        w.querySelector('.change-property').onchange=e=>a.property=e.target.value;
+        w.querySelector('.aval').oninput=e=>a.value=e.target.value;
+      } else {
+        w.querySelector('.aval').oninput=e=>a.value=e.target.value;
+      }
+      
+      w.querySelector('.remAct').onclick=()=>{s.actions.splice(ai,1);redrawActs();};
+    });
+  }
+  redrawActs();
+  document.getElementById('addAct').onclick=()=>{
+    s.actions.push({type:'alert',value:''});
+    redrawActs();
+  };
+}
+</script>
+</body>
+</html>
